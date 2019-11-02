@@ -1,0 +1,16 @@
+plugins {
+    id 'java'
+}
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    implementation 'org.locationtech.jts:jts-core:1.16.1'
+    implementation 'org.pcollections:pcollections:3.1.0'
+    implementation 'javax.validation:validation-api:2.0.1.Final'
+}
