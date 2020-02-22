@@ -1,205 +1,234 @@
 package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.algorithm.RayCrossingCounter;
-import org.locationtech.jts.geom.CoordinateSequence;
-import org.locationtech.jts.geom.MultiPolygon;
-import org.locationtech.jts.geom.Polygon;
-import org.locationtech.jts.geom.TopologyException;
+import org.locationtech.jts.geom.*;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-import javax.validation.constraints.NotNull;
+import java.util.*;
 
-import java.util.LinkedList;
+public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
 
-import static org.locationtech.jts.geom.Location.BOUNDARY;
-import static org.locationtech.jts.geom.Location.INTERIOR;
+    private static final int UP = 1;
+    private static final int DOWN = 2;
 
-public class PolygonSlicer extends AbstractSlicer<MultiPolygon> {
+    public PolygonSlicer(GeometryFactory factory) {
+        super(factory);
+    }
 
-	private static final int FORWARD = 1;
-	private static final int BACKWARD = 2;
+    private static int rank(Event event) {
+        var isIn = Event.isIn(event);
+        var in = isIn ? 4096 : 0;
+        if (event.index >= 0) {
+            if (isIn)
+                return in | (int) (1000 - (1000D * event.index) / event.sequenceSize());
+            else
+                return in | (int) ((1000D * event.index) / event.sequenceSize());
+        } else {
+            return in;
+        }
+    }
 
-	private final Cropper cropper = shapeDetection -> {
-		if (shapeDetection.nonEmpty()) {
-			return new Algorithm(shapeDetection).result;
-		} else {
-			return MultiShape.EMPTY;
-		}
-	};
+    @Override
+    public MultiPolygon apply(MultiShape multishape) {
+        if (!(multishape.getSource() instanceof MultiPolygon)) {
+            if (multishape.nonEmpty()) {
+                return factory.createMultiPolygon(Ginsu.map(multishape, this::apply).toArray(Polygon[]::new));
+            } else {
+                return factory.createMultiPolygon();
+            }
+        } else {
+            return (MultiPolygon) multishape.getSource();
+        }
+    }
 
-	public PolygonSlicer(@NotNull Polygon polygon, @NotNull Order order, @NotNull DetectionGrid detectionGrid) {
-		super(MultiShape.of(polygon), order, detectionGrid, polygon.getFactory());
-	}
+    public Polygon apply(Shape shape) {
+        if (!(shape.getSource() instanceof Polygon)) {
+            if (shape.nonEmpty()) {
+                var it = shape.iterator();
+                var shell = factory.createLinearRing(Ginsu.next(it));
+                var holes = Ginsu.map(it, factory::createLinearRing);
+                return factory.createPolygon(shell, holes.toArray(LinearRing[]::new));
 
-	public PolygonSlicer(@NotNull MultiPolygon multiPolygon, @NotNull Order order, @NotNull DetectionGrid detectionGrid) {
-		super(MultiShape.of(multiPolygon), order, detectionGrid, multiPolygon.getFactory());
-	}
+            } else {
+                throw new GinsuException.IllegalArgument(Objects.toString(shape));
+            }
+        } else {
+            return (Polygon) shape.getSource();
+        }
+    }
 
-	@Override
-	protected Grid<MultiPolygon> compute() {
-		if (multiShape.nonEmpty()) {
-			return detectionGrid.crop(multiShape, order, cropper)
-				.map(entry -> MultiShape.toMultiPolygon(entry.getData(), factory));
-		} else {
-			return detectionGrid.empty(factory.createMultiPolygon());
-		}
-	}
+    @Override
+    public Detection.Status classify(Detection detection, Shape shape) {
+        if (detection.events.isEmpty())
+            return new Detection.Ready(detection.firstLocation == Detection.INSIDE ? shape : Shape.EMPTY);
 
-	private static class Algorithm {
+        return new Detection.Unready(detection);
+    }
 
-		MultiShape result;
-		SliceBorder border;
-		LinkedList<CoordinateSequence> inside;
+    @Override
+    public MultiShape slice(PVector<Detection> detections) {
+        return new Slicer(detections).multishape;
+    }
 
-		Event origin;
+    private class ProtoPolygon implements Comparable<ProtoPolygon> {
 
-		int direction = 0;
+        protected final CoordinateSequence shell;
+        private PVector<CoordinateSequence> holes = TreePVector.empty();
 
+        public ProtoPolygon(CoordinateSequence shell) {
+            this.shell = shell;
+        }
 
-		public Algorithm(ShapeDetection shapeDetection) {
-			var detections = shapeDetection.iterator();
-			var firstDetection = Ginsu.next(detections);
-			if (firstDetection.nonEmpty()) {
-				inside = new LinkedList<>();
-				border = new SliceBorder();
-				border.add(firstDetection);
+        @Override
+        public int compareTo(ProtoPolygon other) {
+            var mySize = shell.size();
+            var otherSize = other.shell.size();
 
-				while (detections.hasNext()) {
-					var detection = detections.next();
-					if (detection.nonEmpty()) {
-						border.add(detection);
-					} else if (detection.getLocation() == Location.INSIDE) {
-						inside.add(detection.getSequence().getCoordinateSequence());
-					}
-				}
+            if (mySize != otherSize)
+                return Integer.compare(mySize, otherSize);
+            else
+                return -1;
+        }
 
-				var shells = TreePVector.<CoordinateSequence>empty();
+        public Shape toShape() {
+            return Shape.of(shell, holes);
+        }
 
-				while (border.hasMore()) {
-					searchOrigin();
+        public void add(Collection<CoordinateSequence> holes) {
+            this.holes = this.holes.plusAll(holes);
+        }
 
-					if (origin != null) {
-						shells = shells.plus(createRing());
-					} else {
-						throw new IllegalStateException();
-					}
-				}
+        public boolean addIfContains(CoordinateSequence hole) {
+            for (int i = 0, l = hole.size(); i < l; i++) {
+                final var coordinate = hole.getCoordinate(i);
+                final var location = RayCrossingCounter.locatePointInRing(coordinate, shell);
 
-				result = MultiShape.of(createShapes(shells));
-			} else {
-				if (firstDetection.getLocation() == Location.INSIDE)
-					result = shapeDetection.getSourceAsMultiShape();
-				else
-					result = MultiShape.EMPTY;
-			}
-		}
+                if (location == Location.INTERIOR || location == Location.EXTERIOR) {
+                    holes = holes.plus(hole);
+                    return true;
+                }
+            }
 
-		void searchOrigin() {
-			var first = border.first();
-			var last = border.last();
+            return false;
+        }
+    }
 
-			if (first instanceof Event.In && last instanceof Event.In) {
-				if (first.index <= last.index)
-					defineOrigin(first, FORWARD);
-				else
-					defineOrigin(last, BACKWARD);
-			} else if (first instanceof Event.Out && last instanceof Event.Out) {
-				if (first.index >= last.index)
-					defineOrigin(first, FORWARD);
-				else
-					defineOrigin(last, BACKWARD);
-			} else {
-				if (first instanceof Event.In)
-					defineOrigin(first, FORWARD);
-				else
-					defineOrigin(last, BACKWARD);
-			}
-		}
+    private class Slicer {
 
-		void defineOrigin(Event origin, int direction) {
-			this.origin = origin;
-			this.direction = direction;
-		}
+        final SortedEventSet eventSet = new SortedEventSet();
+        final MultiShape multishape;
+        LinkedList<CoordinateSequence> inside = new LinkedList<>();
+        TreeSet<ProtoPolygon> protoPolygons = new TreeSet<>();
+        Event origin;
+        int direction = 0;
 
-		CoordinateSequence createRing() {
-			var start = origin;
-			var builder = new SegmentedCoordinateSequence.Builder(2);
-			Event stop;
+        public Slicer(PVector<Detection> detections) {
+            for (var detection : detections) {
+                if (!detection.events.isEmpty()) {
+                    eventSet.add(detection);
+                } else if (detection.firstLocation == Detection.INSIDE) {
+                    inside.add(detection.sequence);
+                }
+            }
 
-			do {
-				if (start instanceof Event.In) {
-					stop = border.nextEvent(start);
-					builder.forward(start.getCoordinateSequence(), start, stop);
-				} else {
-					stop = border.previousEvent(start);
-					builder.backward(start.getCoordinateSequence(), start, stop);
-				}
+            if (eventSet.nonEmpty()) {
 
-				if (onSameBorder(stop, origin)) {
-					if (direction == FORWARD) {
-						start = border.lower(stop);
-					} else {
-						start = border.higher(stop);
-					}
-				} else {
-					if (direction == FORWARD) {
-						start = border.higher(stop);
-					} else {
-						start = border.lower(stop);
-					}
-				}
+                while (eventSet.nonEmpty()) {
+                    protoPolygons.add(new ProtoPolygon(createShell()));
+                }
 
-			} while (start != origin && start != null);
+                if (!inside.isEmpty()) {
 
-			if (start == origin) {
-				var opt = builder.close();
+                    if (protoPolygons.size() > 1)
+                        for (final var hole : inside) {
+                            var found = false;
 
-				if (opt.isPresent())
-					return opt.get();
-				else
-					throw new TopologyException("No Coordinate Sequence!");
-			} else {
-				throw new TopologyException("Start is null!");
-			}
-		}
+                            for (final var protoPolygon : protoPolygons) {
+                                if (protoPolygon.addIfContains(hole)) {
+                                    found = true;
+                                    break;
+                                }
+                            }
 
-		PVector<Shape> createShapes(PVector<CoordinateSequence> shells) {
-			var ret = TreePVector.<Shape>empty();
+                            if (found)
+                                throw new GinsuException.TopologyException("There is a hole on outside!");
+                        }
+                    else
+                        protoPolygons.first().add(inside);
+                }
 
-			for (var shell : shells) {
-				if (!inside.isEmpty()) {
-					LinkedList<CoordinateSequence> proto = new LinkedList<>();
-					proto.add(shell);
-					var it = inside.iterator();
-					while (it.hasNext()) {
-						var hole = it.next();
-						if (holeInside(hole, shell)) {
-							it.remove();
-							proto.add(hole);
-						}
-					}
+                multishape = MultiShape.of(Ginsu.map(protoPolygons, ProtoPolygon::toShape));
+            } else {
+                throw new GinsuException.IllegalState("No events!");
+            }
+        }
 
-					ret = ret.plus(Shape.of(proto));
-				} else {
-					ret = ret.plus(Shape.of(shell));
-				}
-			}
+        CoordinateSequence createShell() {
+            searchOrigin();
+            if (origin == null)
+                throw new GinsuException.TopologyException("There is no origin!");
 
-			return ret;
-		}
+            var builder = new CSBuilder();
+            var start = origin;
 
-		boolean onSameBorder(Event e1, Event e2) {
-			return e1.position * e2.position > 0;
-		}
+            do {
+                var forward = Event.isIn(start);
+                var stop = forward ? eventSet.extractNext(start) : eventSet.extractPrevious(start);
 
-		boolean holeInside(CoordinateSequence hole, CoordinateSequence shell) {
-			var location = BOUNDARY;
-			for (var i = 0; location == BOUNDARY && i < hole.size(); i++) {
-				location = RayCrossingCounter.locatePointInRing(hole.getCoordinate(i), shell);
-			}
+                if (start.index >= 0 && stop.index >= 0) {
+                    if (start.intersection.coordinate != null)
+                        builder.addPoint(start.intersection.coordinate);
 
-			return location == INTERIOR;
-		}
-	}
+                    if (forward)
+                        builder.addForward(start.index, stop.index, start.sequence);
+                    else
+                        builder.addBackward(start.index, stop.index, start.sequence);
+
+                    if (stop.intersection.coordinate != null)
+                        builder.addPoint(stop.intersection.coordinate);
+
+                } else if (start.index < 0 && stop.index < 0) {
+                    builder.addLine(start.intersection.coordinate, stop.intersection.coordinate);
+                } else {
+                    throw new GinsuException.TopologyException("Invalid event detection!");
+                }
+
+                if (stop.border() == origin.border()) {
+                    start = direction == UP ? eventSet.extractLower(stop) : eventSet.extractHigher(stop);
+                } else {
+                    start = direction == UP ? eventSet.extractHigher(stop) : eventSet.extractLower(stop);
+                }
+            } while (start != origin);
+
+            return builder.close();
+        }
+
+        void searchOrigin() {
+            var lower = eventSet.lower();
+            var upper = eventSet.upper();
+            if (lower != upper) {
+                origin = null;
+                var ranking = updateOrigin(Integer.MIN_VALUE, UP, lower.getLower(), lower.getUpper());
+                updateOrigin(ranking, DOWN, upper.getUpper(), upper.getLower());
+            } else {
+                throw new GinsuException.TopologyException("Invalid event detection!");
+            }
+        }
+
+        int updateOrigin(int ranking, int newDirection, Event... events) {
+            for (var event : events) {
+                if (event != null) {
+                    var newRanking = rank(event);
+                    if (newRanking > ranking) {
+                        ranking = newRanking;
+                        origin = event;
+                        direction = newDirection;
+                    }
+                }
+            }
+
+            return ranking;
+        }
+    }
 }

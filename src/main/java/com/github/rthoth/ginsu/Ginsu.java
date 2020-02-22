@@ -1,138 +1,118 @@
 package com.github.rthoth.ginsu;
 
-import org.locationtech.jts.geom.Geometry;
-import org.pcollections.Empty;
 import org.pcollections.PVector;
+import org.pcollections.TreePVector;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 
-/**
- * Utility class.
- */
 public class Ginsu {
 
-	public static <E, I extends Iterable<E>, O> PVector<O> aggregate(Aggregation.Root<E, O> root, Iterable<I> iterable) {
-		var externalIt = iterable.iterator();
-		if (externalIt.hasNext()) {
-			var aggregations = Ginsu.mapToVector(externalIt.next(), root::append);
-			final var expectedSize = aggregations.size();
+    public static final double DEFAULT_OFFSET = 1e-8D;
+    public static final double DEFAULT_EXTRUSION = 0D;
 
-			while (externalIt.hasNext()) {
-				var count = 0;
+    private Ginsu() {
 
-				for (var elem : externalIt.next()) {
-					aggregations = aggregations.with(count, aggregations.get(count).append(elem));
-					count++;
-				}
+    }
 
-				if (count != expectedSize)
-					throw new IllegalStateException();
-			}
+    public static int compare(double reference, double offset, double value) {
+        return Math.abs(reference - value) > offset ? Double.compare(reference, value) : 0;
+    }
 
-			return Ginsu.mapToVector(aggregations, Aggregation::aggregate);
-		} else {
-			return Empty.vector();
-		}
-	}
+    public static <I, M> PVector<M> collect(Iterable<I> iterable, Function<I, Optional<M>> predicate) {
+        var filtered = TreePVector.<M>empty();
+        for (var element : iterable) {
+            var optional = predicate.apply(element);
+            if (optional.isPresent())
+                filtered = filtered.plus(optional.get());
+        }
 
-	public static <T, R> PVector<R> flatMapToVector(Iterable<T> iterable, Function<T, Iterable<R>> mapper) {
-		var ret = Empty.<R>vector();
-		for (var element : iterable) {
-			for (var value : mapper.apply(element)) {
-				ret = ret.plus(value);
-			}
-		}
+        return filtered;
+    }
 
-		return ret;
-	}
+    public static <M extends Mergeable<M>, V extends PVector<M>> PVector<M> flatten(PVector<V> vector) {
+        if (!vector.isEmpty()) {
+            var previous = new ArrayList<>(vector.get(0));
+            var expectedSize = previous.size();
 
-	public static <T> PVector<String> mapToString(Iterable<T> iterable) {
-		return mapToVector(iterable, T::toString);
-	}
+            for (var i = 1; i < vector.size(); i++) {
+                var current = vector.get(i);
+                if (current.size() == expectedSize) {
+                    for (var j = 0; j < expectedSize; j++) {
+                        previous.set(j, previous.get(j).plus(current.get(j)));
+                    }
+                } else {
+                    throw new GinsuException.IllegalArgument("All elements of vector must be the same size!");
+                }
+            }
 
-	public static <O> PVector<O> mapToVector(double[] values, DoubleFunction<O> mapper) {
-		PVector<O> ret = Empty.vector();
+            return TreePVector.from(previous);
+        } else {
+            return TreePVector.empty();
+        }
+    }
 
-		for (double value : values)
-			ret = ret.plus(mapper.apply(value));
+    public static <I, M> PVector<M> map(Iterable<I> input, Function<I, M> mapper) {
+        return map(input.iterator(), mapper);
+    }
 
-		return ret;
-	}
+    public static <I, M> PVector<M> map(Iterator<I> input, Function<I, M> mapper) {
+        var vector = TreePVector.<M>empty();
+        while (input.hasNext())
+            vector = vector.plus(mapper.apply(input.next()));
 
-	public static <I, O> PVector<O> mapToVector(Iterable<I> iterable, Function<I, O> mapper) {
-		return mapToVector(iterable.iterator(), mapper);
-	}
+        return vector;
+    }
 
-	public static <I, O> PVector<O> mapToVector(Iterator<I> iterator, Function<I, O> mapper) {
-		var ret = Empty.<O>vector();
-		while (iterator.hasNext())
-			ret = ret.plus(mapper.apply(iterator.next()));
+    public static <T> PVector<T> mapTo(double[] array, DoubleFunction<T> mapper) {
+        var vector = TreePVector.<T>empty();
+        for (var element : array)
+            vector = vector.plus(mapper.apply(element));
 
-		return ret;
-	}
+        return vector;
+    }
 
-	public static <I, O> O[] mapToArray(Iterable<I> iterable, Function<I, O> mapper, IntFunction<O[]> generator) {
-		return mapToArray(iterable.iterator(), mapper, generator);
-	}
+    public static <T> T next(Iterator<T> iterator) {
+        if (iterator.hasNext())
+            return iterator.next();
+        else
+            throw new NoSuchElementException();
+    }
 
-	public static <I, O> O[] mapToArray(Iterator<I> iterator, Function<I, O> mapper, IntFunction<O[]> generator) {
-		var newList = new LinkedList<O>();
-		while (iterator.hasNext())
-			newList.add(mapper.apply(iterator.next()));
+    public static <T> Iterable<IndexEntry<T>> zipWithIndex(Iterable<T> iterable) {
+        return () -> new Iterator<>() {
 
-		return newList.toArray(generator);
-	}
+            private final Iterator<T> iterator = iterable.iterator();
+            private int index = 0;
 
-	public static <T> T next(Iterator<T> it) {
-		if (it.hasNext())
-			return it.next();
-		else
-			throw new IllegalStateException();
-	}
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
 
-	public static <T> Optional<T> getNext(Iterator<T> it) {
-		return it.hasNext() ? Optional.of(it.next()) : Optional.empty();
-	}
+            @Override
+            public IndexEntry<T> next() {
+                return new IndexEntry<>(iterator.next(), index++);
+            }
+        };
+    }
 
-	public static <T> T selectFirst(SortedSet<T> s1, SortedSet<T> s2, Comparator<T> comparator) {
-		var v1 = !s1.isEmpty() ? s1.first() : null;
-		var v2 = !s2.isEmpty() ? s2.first() : null;
+    public static class IndexEntry<T> {
 
-		if (v1 != null && v2 != null) {
-			var comp = comparator.compare(v1, v2);
-			return comp < 0 ? v1 : (comp > 0 ? v2 : null);
-		} else
-			return v1 != null ? v1 : v2;
-	}
+        public final T value;
+        public final int index;
 
-	public static <T> T selectLast(SortedSet<T> s1, SortedSet<T> s2, Comparator<T> comparator) {
-		var v1 = !s1.isEmpty() ? s1.last() : null;
-		var v2 = !s2.isEmpty() ? s2.last() : null;
+        public IndexEntry(T value, int index) {
+            this.value = value;
+            this.index = index;
+        }
 
-		if (v1 != null && v2 != null) {
-			var comp = comparator.compare(v1, v2);
-			return comp < 0 ? v1 : (comp > 0 ? v2 : null);
-		} else
-			return v1 != null ? v1 : v2;
-	}
-
-	public static Iterable<Geometry> components(Geometry geometry) {
-		return () -> new Iterator<>() {
-
-			private int index = 0;
-
-			@Override
-			public boolean hasNext() {
-				return index < geometry.getNumGeometries();
-			}
-
-			@Override
-			public Geometry next() {
-				return geometry.getGeometryN(index++);
-			}
-		};
-	}
+        public <M> IndexEntry<M> copy(M value) {
+            return new IndexEntry<>(value, index);
+        }
+    }
 }

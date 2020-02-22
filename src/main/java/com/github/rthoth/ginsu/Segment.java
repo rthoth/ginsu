@@ -3,283 +3,313 @@ package com.github.rthoth.ginsu;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.CoordinateSequences;
-import org.locationtech.jts.geom.TopologyException;
 
 public abstract class Segment {
 
-	protected final int bottom;
+    public static Segment backward(int start, int stop, CoordinateSequence sequence) {
+        var isRing = CoordinateSequences.isRing(sequence);
+        var limit = isRing ? sequence.size() - 1 : sequence.size();
 
-	public Segment(int bottom) {
-		if (bottom < 0)
-			throw new IllegalArgumentException("Invalid bottom " + bottom + "!");
+        if (start >= stop) {
+            if (start > stop) {
+                return new Backward(start, limit, start - stop + 1, isRing, sequence);
+            } else {
+                return new PointView(start, sequence);
+            }
+        } else if (isRing) {
+            var size = limit - stop + start + 1;
+            return new Backward(start, limit, size, true, sequence);
+        } else {
+            throw new GinsuException.IllegalArgument("CoordinateSequence should be closed!");
+        }
+    }
 
-		this.bottom = bottom;
-	}
+    public static Segment forward(int start, int stop, CoordinateSequence sequence) {
+        var isRing = CoordinateSequences.isRing(sequence);
+        var limit = isRing ? sequence.size() - 1 : sequence.size();
+        if (start <= stop) {
+            if (start < stop) {
+                return new Forward(start, limit, stop - start + 1, isRing, sequence);
+            } else {
+                return new PointView(start, sequence);
+            }
+        } else if (isRing) {
+            return new Forward(start, limit, limit - start + stop + 1, true, sequence);
+        } else {
+            throw new GinsuException.IllegalArgument("CoordinateSequence should be closed!");
+        }
+    }
 
-	public abstract int size();
+    public static Segment wrap(Segment segment, int size) {
+        return new Wrapper(segment, size);
+    }
 
-	public abstract Segment withBottom(int bottom);
+    public abstract Coordinate getCoordinate(int index);
 
-	public abstract Coordinate getCoordinate(int index);
+    public abstract void getCoordinate(int index, Coordinate coordinate);
 
-	public abstract Coordinate getCoordinateCopy(int index);
+    public abstract double getOrdinate(int index, int ordinateIndex);
 
-	public abstract void getCoordinate(int index, Coordinate coordinate);
+    public abstract double getX(int index);
 
-	public abstract double getX(int index);
+    public abstract double getY(int index);
 
-	public abstract double getY(int index);
+    public abstract int size();
 
-	public abstract double getOrdinate(int index, int ordinateIndex);
+    public static class Point extends Segment {
+        private final Coordinate point;
 
-	public abstract static class View extends Segment {
+        public Point(Coordinate point) {
+            this.point = point;
+        }
 
-		protected final CoordinateSequence sequence;
-		protected final int size;
-		protected final int start;
-		protected final int limit;
+        private void check(int index) {
+            if (index != 0)
+                throw new GinsuException.IllegalArgument(Integer.toString(index));
+        }
 
-		public View(CoordinateSequence sequence, int bottom, int start, int size, int limit) {
-			super(bottom);
-			this.sequence = sequence;
-			this.size = size;
-			this.start = start;
-			this.limit = limit;
-		}
+        @Override
+        public Coordinate getCoordinate(int index) {
+            check(index);
+            return point;
+        }
 
-		@Override
-		public int size() {
-			return size;
-		}
+        @Override
+        public void getCoordinate(int index, Coordinate coordinate) {
+            check(index);
+            coordinate.setCoordinate(point);
+        }
 
-		protected abstract int computeIndex(int index);
+        @Override
+        public double getOrdinate(int index, int ordinateIndex) {
+            check(index);
+            return point.getOrdinate(ordinateIndex);
+        }
 
-		protected int mapIndex(int index) {
-			var validIndex = index - bottom;
-			if (validIndex < size)
-				return computeIndex(validIndex);
-			else
-				throw new IndexOutOfBoundsException(index);
-		}
+        @Override
+        public double getX(int index) {
+            check(index);
+            return point.getX();
+        }
 
-		@Override
-		public Coordinate getCoordinate(int index) {
-			return sequence.getCoordinate(mapIndex(index));
-		}
+        @Override
+        public double getY(int index) {
+            check(index);
+            return point.getY();
+        }
 
-		@Override
-		public Coordinate getCoordinateCopy(int index) {
-			return sequence.getCoordinateCopy(mapIndex(index));
-		}
+        @Override
+        public int size() {
+            return 1;
+        }
+    }
 
-		@Override
-		public void getCoordinate(int index, Coordinate coordinate) {
-			sequence.getCoordinate(mapIndex(index), coordinate);
-		}
+    public static class Line extends Segment {
+        private final Coordinate start;
+        private final Coordinate stop;
 
-		@Override
-		public double getX(int index) {
-			return sequence.getX(mapIndex(index));
-		}
+        public Line(Coordinate start, Coordinate stop) {
+            this.start = start;
+            this.stop = stop;
+        }
 
-		@Override
-		public double getY(int index) {
-			return sequence.getY(mapIndex(index));
-		}
+        @Override
+        public Coordinate getCoordinate(int index) {
+            switch (index) {
+                case 0:
+                    return start;
+                case 1:
+                    return stop;
+                default:
+                    throw new GinsuException.IllegalArgument(Integer.toString(index));
+            }
+        }
 
-		@Override
-		public double getOrdinate(int index, int ordinateIndex) {
-			return sequence.getOrdinate(mapIndex(index), ordinateIndex);
-		}
-	}
+        @Override
+        public void getCoordinate(int index, Coordinate coordinate) {
+            coordinate.setCoordinate(getCoordinate(index));
+        }
 
-	public static class Forward extends View {
+        @Override
+        public double getOrdinate(int index, int ordinateIndex) {
+            return getCoordinate(index).getOrdinate(ordinateIndex);
+        }
 
-		public Forward(CoordinateSequence sequence, int bottom, int start, int size, int limit) {
-			super(sequence, bottom, start, size, limit);
-		}
+        @Override
+        public double getX(int index) {
+            return getCoordinate(index).getX();
+        }
 
-		public static Segment create(CoordinateSequence sequence, int start, int stop) {
-			if (start != stop) {
-				var isRing = CoordinateSequences.isRing(sequence);
-				var limit = isRing ? sequence.size() - 1 : sequence.size();
+        @Override
+        public double getY(int index) {
+            return getCoordinate(index).getY();
+        }
 
-				if (start < stop)
-					return new Forward(sequence, 0, start, stop - start + 1, limit);
-				else if (isRing)
-					return new Forward(sequence, 0, start, stop + limit - start + 1, limit);
-				else
-					throw new TopologyException("Sequence must be a ring!");
-			} else {
-				return new PointSegment(sequence.getCoordinate(start), 0);
-			}
-		}
+        public Segment pointView(int index) {
+            return new Point(getCoordinate(index));
+        }
 
-		@Override
-		protected int computeIndex(int index) {
-			return (start + index) % limit;
-		}
+        @Override
+        public int size() {
+            return 2;
+        }
+    }
 
-		@Override
-		public Segment withBottom(int bottom) {
-			return new Forward(sequence, bottom, start, size, limit);
-		}
-	}
+    public static abstract class View extends Segment {
 
-	public static class Backward extends View {
+        protected final int start;
+        protected final int limit;
+        protected final int size;
+        protected final boolean isRing;
+        protected final CoordinateSequence sequence;
 
-		public Backward(CoordinateSequence sequence, int bottom, int start, int size, int limit) {
-			super(sequence, bottom, start, size, limit);
-		}
+        public View(int start, int limit, int size, boolean isRing, CoordinateSequence sequence) {
+            this.start = start;
+            this.limit = limit;
+            this.size = size;
+            this.isRing = isRing;
+            this.sequence = sequence;
+        }
 
-		public static Segment create(CoordinateSequence sequence, int start, int stop) {
-			if (start != stop) {
-				var isRing = CoordinateSequences.isRing(sequence);
-				var limit = isRing ? sequence.size() - 1 : sequence.size();
+        @Override
+        public Coordinate getCoordinate(int index) {
+            return sequence.getCoordinate(mapIndex(index));
+        }
 
-				if (start > stop)
-					return new Backward(sequence, 0, start, start - stop + 1, limit);
-				else if (isRing)
-					return new Backward(sequence, 0, start, start + limit - stop + 1, limit);
-				else
-					throw new TopologyException("Sequence must be a ring!");
-			} else {
-				return new PointSegment(sequence.getCoordinate(start), 0);
-			}
-		}
+        @Override
+        public void getCoordinate(int index, Coordinate coordinate) {
+            sequence.getCoordinate(mapIndex(index), coordinate);
+        }
 
-		@Override
-		protected int computeIndex(int index) {
-			return index <= start ? start - index : limit + ((start - index) % limit);
-		}
+        @Override
+        public double getOrdinate(int index, int ordinateIndex) {
+            return sequence.getOrdinate(mapIndex(index), ordinateIndex);
+        }
 
-		@Override
-		public Segment withBottom(int bottom) {
-			return new Backward(sequence, bottom, start, size, limit);
-		}
-	}
+        @Override
+        public double getX(int index) {
+            return sequence.getX(mapIndex(index));
+        }
 
-	public static class LineSegment extends Segment {
+        @Override
+        public double getY(int index) {
+            return sequence.getY(mapIndex(index));
+        }
 
-		private final Coordinate _0;
-		private final Coordinate _1;
+        protected abstract int mapIndex(int index);
 
-		public LineSegment(int bottom, Coordinate _0, Coordinate _1) {
-			super(bottom);
-			this._0 = _0;
-			this._1 = _1;
-		}
+        public Segment pointView(int index) {
+            return new PointView(mapIndex(index), sequence);
+        }
 
-		private int mapIndex(int index) {
-			var mapped = index - bottom;
-			if (mapped == 0 || mapped == 1)
-				return mapped;
-			else
-				throw new IndexOutOfBoundsException(index);
-		}
+        @Override
+        public int size() {
+            return size;
+        }
+    }
 
-		@Override
-		public Coordinate getCoordinate(int index) {
-			return mapIndex(index) == 0 ? _0 : _1;
-		}
+    public static class Forward extends View {
+        public Forward(int start, int limit, int size, boolean isRing, CoordinateSequence sequence) {
+            super(start, limit, size, isRing, sequence);
+        }
 
-		@Override
-		public Coordinate getCoordinateCopy(int index) {
-			return getCoordinate(index).copy();
-		}
+        @Override
+        protected int mapIndex(int index) {
+            return (start + index) % limit;
+        }
+    }
 
-		@Override
-		public void getCoordinate(int index, Coordinate coordinate) {
-			coordinate.setCoordinate(getCoordinate(index));
-		}
+    public static class Backward extends View {
+        public Backward(int start, int limit, int size, boolean isRing, CoordinateSequence sequence) {
+            super(start, limit, size, isRing, sequence);
+        }
 
-		@Override
-		public double getX(int index) {
-			return getCoordinate(index).getX();
-		}
+        @Override
+        protected int mapIndex(int index) {
+            return index <= start ? start - index : limit - (index - start);
+        }
+    }
 
-		@Override
-		public double getY(int index) {
-			return getCoordinate(index).getY();
-		}
+    public static class Wrapper extends Segment {
+        private final Segment segment;
+        private final int bottom;
 
-		@Override
-		public double getOrdinate(int index, int ordinateIndex) {
-			return getCoordinate(index).getOrdinate(ordinateIndex);
-		}
+        public Wrapper(Segment segment, int bottom) {
+            this.segment = segment;
+            this.bottom = bottom;
+        }
 
-		@Override
-		public int size() {
-			return 2;
-		}
+        @Override
+        public Coordinate getCoordinate(int index) {
+            return segment.getCoordinate(index - bottom);
+        }
 
-		@Override
-		public Segment withBottom(int bottom) {
-			return new LineSegment(bottom, _0, _1);
-		}
-	}
+        @Override
+        public void getCoordinate(int index, Coordinate coordinate) {
+            segment.getCoordinate(index - bottom, coordinate);
+        }
 
-	public static class PointSegment extends Segment {
+        @Override
+        public double getOrdinate(int index, int ordinateIndex) {
+            return segment.getOrdinate(index - bottom, ordinateIndex);
+        }
 
-		private final Coordinate coordinate;
+        @Override
+        public double getX(int index) {
+            return segment.getX(index - bottom);
+        }
 
-		public PointSegment(Coordinate coordinate, int bottom) {
-			super(bottom);
-			this.coordinate = coordinate;
-		}
+        @Override
+        public double getY(int index) {
+            return segment.getY(index - bottom);
+        }
 
-		private void checkIndex(int index) {
-			if (index - bottom == 0) {
-				return;
-			}
+        @Override
+        public int size() {
+            return segment.size();
+        }
+    }
 
-			throw new IndexOutOfBoundsException(index);
-		}
+    public static class PointView extends Segment {
+        private final int index;
+        private final CoordinateSequence sequence;
 
-		@Override
-		public int size() {
-			return 1;
-		}
+        public PointView(int index, CoordinateSequence sequence) {
+            this.index = index;
+            this.sequence = sequence;
+        }
 
-		@Override
-		public Segment withBottom(int bottom) {
-			return new PointSegment(coordinate, bottom);
-		}
+        @Override
+        public Coordinate getCoordinate(int index) {
+            if (index != 0)
+                throw new GinsuException.IllegalArgument(Integer.toString(index));
 
-		@Override
-		public Coordinate getCoordinate(int index) {
-			checkIndex(index);
-			return coordinate;
-		}
+            return sequence.getCoordinate(this.index);
+        }
 
-		@Override
-		public Coordinate getCoordinateCopy(int index) {
-			checkIndex(index);
-			return coordinate.copy();
-		}
+        @Override
+        public void getCoordinate(int index, Coordinate coordinate) {
+            coordinate.setCoordinate(getCoordinate(index));
+        }
 
-		@Override
-		public void getCoordinate(int index, Coordinate coordinate) {
-			checkIndex(index);
-			coordinate.setCoordinate(this.coordinate);
-		}
+        @Override
+        public double getOrdinate(int index, int ordinateIndex) {
+            return getCoordinate(index).getOrdinate(ordinateIndex);
+        }
 
-		@Override
-		public double getX(int index) {
-			checkIndex(index);
-			return coordinate.getX();
-		}
+        @Override
+        public double getX(int index) {
+            return getCoordinate(index).getX();
+        }
 
-		@Override
-		public double getY(int index) {
-			checkIndex(index);
-			return coordinate.getY();
-		}
+        @Override
+        public double getY(int index) {
+            return getCoordinate(index).getY();
+        }
 
-		@Override
-		public double getOrdinate(int index, int ordinateIndex) {
-			checkIndex(index);
-			return coordinate.getOrdinate(ordinateIndex);
-		}
-	}
+        @Override
+        public int size() {
+            return 1;
+        }
+    }
 }

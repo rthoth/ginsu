@@ -2,147 +2,136 @@ package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.geom.Coordinate;
 
-public abstract class Knife<K extends Knife<K>> implements Comparable<K> {
+public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
 
-	protected final double position;
-	protected final double offset;
-	protected final K lower;
-	protected final K upper;
+    protected final double offset;
+    protected final double value;
 
-	protected Knife(double position, double offset, K upper, K lower) {
-		this.offset = Math.abs(offset);
-		this.position = position;
-		this.lower = lower;
-		this.upper = upper;
-	}
+    public Knife(double value, double offset) {
+        this.value = value;
+        this.offset = offset;
+    }
 
-	public abstract K extrude(double extrusion);
+    public abstract K getLower();
 
-	public abstract K getLower();
+    public abstract K getUpper();
 
-	public abstract K getUpper();
+    public abstract Coordinate intersection(Coordinate origin, Coordinate target);
 
-	public abstract int positionOf(Coordinate coordinate);
+    public abstract int positionOf(Coordinate coordinate);
 
-	public abstract Coordinate intersection(Coordinate origin, Coordinate target);
+    public abstract double ordinateOf(Coordinate coordinate);
 
-	public abstract double ordinateOf(Coordinate coordinate);
+    public static class X extends Knife<X> {
 
-	public static class X extends Knife<X> {
+        private final X upper;
+        private final X lower;
 
-		public X(double position, double offset) {
-			super(position, offset, null, null);
-		}
+        public X(double value, double offset, double extrusion) {
+            super(value, offset);
+            if (extrusion != 0D) {
+                lower = new X(value - extrusion, offset, 0D);
+                upper = new X(value + extrusion, offset, 0D);
+            } else {
+                upper = this;
+                lower = this;
+            }
+        }
 
-		public X(double position, double offset, double extrusion) {
-			super(position, offset, new X(position - extrusion, offset), new X(position + extrusion, offset));
-		}
+        @Override
+        public double ordinateOf(Coordinate coordinate) {
+            return coordinate.getY();
+        }
 
-		@Override
-		public int compareTo(X x) {
-			return Double.compare(position, x.position);
-		}
+        @Override
+        public int compareTo(X other) {
+            return Ginsu.compare(value, offset, other.value);
+        }
 
-		@Override
-		public X getLower() {
-			return lower == null ? this : lower;
-		}
+        @Override
+        public X getLower() {
+            return lower;
+        }
 
-		@Override
-		public X getUpper() {
-			return upper == null ? this : upper;
-		}
+        @Override
+        public X getUpper() {
+            return upper;
+        }
 
-		@Override
-		public X extrude(double extrusion) {
-			return new X(position, offset, extrusion);
-		}
+        @Override
+        public Coordinate intersection(Coordinate origin, Coordinate target) {
+            final var xo = origin.getX();
+            final var yo = origin.getY();
+            final var xt = target.getX();
+            final var yt = target.getY();
 
-		@Override
-		public double ordinateOf(Coordinate coordinate) {
-			return coordinate.getY();
-		}
+            return new Coordinate(value, ((yt - yo) * (value - xo)) / (xt - xo) + yo);
+        }
 
-		@Override
-		public int positionOf(Coordinate coordinate) {
-			return Math.abs(position - coordinate.getX()) > offset ? Double.compare(coordinate.getX(), position) : 0;
-		}
+        @Override
+        public int positionOf(Coordinate coordinate) {
+            return Ginsu.compare(coordinate.getX(), offset, value);
+        }
 
-		@Override
-		public Coordinate intersection(Coordinate origin, Coordinate target) {
-			final double x0 = origin.getX(), y0 = origin.getY();
-			final double x1 = target.getX(), y1 = target.getY();
-			final double d = x1 - x0;
+        @Override
+        public String toString() {
+            return "X(" + value + ")";
+        }
+    }
 
-			if (d != 0D) {
-				return new Coordinate(position, y0 + ((position - x0) / (x1 - x0)) * (y1 - y0));
-			} else {
-				throw new ArithmeticException();
-			}
-		}
+    public static class Y extends Knife<Y> {
+        private final Y lower;
+        private final Y upper;
 
-		@Override
-		public String toString() {
-			return "X(" + position + " +/- " + offset + ")";
-		}
-	}
+        public Y(double value, double offset, double extrusion) {
+            super(value, offset);
+            if (extrusion != 0D) {
+                upper = new Y(value + extrusion, offset, 0D);
+                lower = new Y(value - extrusion, offset, 0D);
+            } else {
+                upper = this;
+                lower = this;
+            }
+        }
 
-	public static class Y extends Knife<Y> {
+        @Override
+        public double ordinateOf(Coordinate coordinate) {
+            return coordinate.getX();
+        }
 
-		public Y(double position, double offset) {
-			super(position, offset, null, null);
-		}
+        @Override
+        public int compareTo(Y other) {
+            return Ginsu.compare(value, offset, other.value);
+        }
 
-		public Y(double position, double offset, double extrusion) {
-			super(position, offset, new Y(position - extrusion, offset), new Y(position + extrusion, offset));
-		}
+        @Override
+        public Y getLower() {
+            return lower;
+        }
 
-		@Override
-		public int compareTo(Y y) {
-			return Double.compare(position, y.position);
-		}
+        @Override
+        public Y getUpper() {
+            return upper;
+        }
 
-		@Override
-		public Y getLower() {
-			return lower == null ? this : lower;
-		}
+        @Override
+        public Coordinate intersection(Coordinate origin, Coordinate target) {
+            final var xo = origin.getX();
+            final var yo = origin.getY();
+            final var yt = target.getY();
+            final var xt = target.getX();
 
-		@Override
-		public Y getUpper() {
-			return upper == null ? this : upper;
-		}
+            return new Coordinate(((xt - xo) * (value - yo)) / (yt - yo) + xo, value);
+        }
 
-		@Override
-		public Y extrude(double extrusion) {
-			return new Y(position, offset, extrusion);
-		}
+        @Override
+        public int positionOf(Coordinate coordinate) {
+            return Ginsu.compare(coordinate.getY(), offset, value);
+        }
 
-		@Override
-		public double ordinateOf(Coordinate coordinate) {
-			return coordinate.getX();
-		}
-
-		@Override
-		public int positionOf(Coordinate coordinate) {
-			return Math.abs(position - coordinate.getY()) > offset ? Double.compare(coordinate.getY(), position) : 0;
-		}
-
-		@Override
-		public Coordinate intersection(Coordinate origin, Coordinate target) {
-			final double x0 = origin.getX(), y0 = origin.getY();
-			final double x1 = target.getX(), y1 = target.getY();
-			final double d = y1 - y0;
-
-			if (d != 0D) {
-				return new Coordinate(x0 + ((position - y0) / (y1 - y0)) * (x1 - x0), position);
-			} else {
-				throw new ArithmeticException();
-			}
-		}
-
-		@Override
-		public String toString() {
-			return "Y(" + position + " +/- " + offset + ")";
-		}
-	}
+        @Override
+        public String toString() {
+            return "Y(" + value + ")";
+        }
+    }
 }

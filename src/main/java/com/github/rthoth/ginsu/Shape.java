@@ -1,107 +1,93 @@
 package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.geom.CoordinateSequence;
-import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Polygon;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-import javax.validation.constraints.NotNull;
 import java.util.Collections;
 import java.util.Iterator;
 
-public abstract class Shape implements Iterable<IndexedCoordinateSequence> {
+public abstract class Shape implements Iterable<CoordinateSequence> {
 
-	public static final Shape EMPTY = new Empty();
+    public static final Shape EMPTY = new Empty();
 
-	public abstract boolean nonEmpty();
+    public static Shape of(Polygon polygon) {
+        if (!polygon.isEmpty()) {
+            PVector<CoordinateSequence> sequences = TreePVector
+                    .singleton(polygon.getExteriorRing().getCoordinateSequence());
 
-	public static Shape of(CoordinateSequence... sequences) {
-		var index = 0;
-		var ret = TreePVector.<IndexedCoordinateSequence>empty();
+            for (var i = 0; i < polygon.getNumInteriorRing(); i++) {
+                var sequence = polygon.getInteriorRingN(i).getCoordinateSequence();
+                if (sequence.size() != 0)
+                    sequences = sequences.plus(sequence);
+            }
 
-		for (var sequence : sequences) {
-			if (sequence.size() > 0)
-				ret = ret.plus(new IndexedCoordinateSequence(sequence, index++));
-		}
+            return new NotEmpty(sequences, polygon);
+        } else {
+            return EMPTY;
+        }
+    }
 
-		return index > 0 ? new NotEmpty(ret) : EMPTY;
-	}
+    public static Shape of(CoordinateSequence head, Iterable<CoordinateSequence> tail) {
+        var sequences = TreePVector.<CoordinateSequence>empty();
+        if (head.size() > 0)
+            sequences = sequences.plus(head);
 
-	public static Shape of(Iterable<CoordinateSequence> iterable) {
-		return of(iterable.iterator());
-	}
+        for (var element : tail) {
+            if (element.size() > 0) {
+                sequences = sequences.plus(element);
+            }
+        }
 
-	public static Shape of(Iterator<CoordinateSequence> iterator) {
-		var index = 0;
-		var sequences = TreePVector.<IndexedCoordinateSequence>empty();
-		while (iterator.hasNext()) {
-			var sequence = iterator.next();
-			if (sequence.size() > 0) {
-				index++;
-				sequences = sequences.plus(new IndexedCoordinateSequence(sequence, index));
-			}
-		}
+        return !sequences.isEmpty() ? new NotEmpty(sequences, null) : EMPTY;
+    }
 
-		return index > 0 ? new NotEmpty(sequences) : EMPTY;
-	}
+    public abstract Geometry getSource();
 
-	public static Shape of(@NotNull Polygon polygon) {
-		if (!polygon.isEmpty()) {
+    public abstract boolean nonEmpty();
 
-			PVector<IndexedCoordinateSequence> sequences = TreePVector
-				.singleton(new IndexedCoordinateSequence(polygon.getExteriorRing().getCoordinateSequence(), 0));
+    private static class Empty extends Shape {
+        @Override
+        public Geometry getSource() {
+            return null;
+        }
 
-			var index = 1;
-			for (int i = 0, l = polygon.getNumInteriorRing(); i < l; i++) {
-				var hole = polygon.getInteriorRingN(i).getCoordinateSequence();
-				if (hole.size() > 0)
-					sequences = sequences.plus(new IndexedCoordinateSequence(hole, index++));
-			}
+        @Override
+        public Iterator<CoordinateSequence> iterator() {
+            return Collections.emptyIterator();
+        }
 
-			return new NotEmpty(sequences);
-		} else {
-			return EMPTY;
-		}
-	}
+        @Override
+        public boolean nonEmpty() {
+            return false;
+        }
+    }
 
-	public static Shape of(@NotNull LineString lineString) {
-		if (!lineString.isEmpty()) {
-			return new NotEmpty(TreePVector.singleton(new IndexedCoordinateSequence(lineString.getCoordinateSequence(), 0)));
-		} else {
-			return EMPTY;
-		}
-	}
+    private static class NotEmpty extends Shape {
 
-	private static class NotEmpty extends Shape {
+        private final PVector<CoordinateSequence> sequences;
+        private final Geometry source;
 
-		private final PVector<IndexedCoordinateSequence> sequences;
+        public NotEmpty(PVector<CoordinateSequence> sequences, Geometry source) {
+            this.sequences = sequences;
+            this.source = source;
+        }
 
-		public NotEmpty(@NotNull PVector<IndexedCoordinateSequence> sequences) {
-			this.sequences = sequences;
-		}
+        @Override
+        public Geometry getSource() {
+            return source;
+        }
 
-		@Override
-		public Iterator<IndexedCoordinateSequence> iterator() {
-			return sequences.iterator();
-		}
+        @Override
+        public Iterator<CoordinateSequence> iterator() {
+            return sequences.iterator();
+        }
 
-		@Override
-		public boolean nonEmpty() {
-			return true;
-		}
-	}
-
-	private static class Empty extends Shape {
-
-		@Override
-		public boolean nonEmpty() {
-			return false;
-		}
-
-		@Override
-		public Iterator<IndexedCoordinateSequence> iterator() {
-			return Collections.emptyIterator();
-		}
-	}
+        @Override
+        public boolean nonEmpty() {
+            return true;
+        }
+    }
 }

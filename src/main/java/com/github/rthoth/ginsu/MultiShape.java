@@ -1,156 +1,110 @@
 package com.github.rthoth.ginsu;
 
-import org.locationtech.jts.geom.*;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.MultiPolygon;
+import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.Polygonal;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-import javax.validation.constraints.NotNull;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Objects;
 
-public abstract class MultiShape implements Iterable<Shape> {
+public abstract class MultiShape implements Iterable<Shape>, Mergeable<MultiShape> {
 
-	public static final MultiShape EMPTY = new Empty();
+    public static final MultiShape EMPTY = new Empty();
 
-	public static final Aggregation.Root<MultiShape, MultiShape> MULTI_ROOT = new Aggregation.Root<>() {
+    public static MultiShape of(Polygonal polygonal) {
+        PVector<Shape> shapes = TreePVector.empty();
 
-		@Override
-		public Aggregation<MultiShape, MultiShape> begin() {
-			return new MultiAgg(TreePVector.empty());
-		}
+        if (polygonal instanceof MultiPolygon) {
+            var multiPolygon = (MultiPolygon) polygonal;
+            for (var i = 0; i < multiPolygon.getNumGeometries(); i++) {
+                var polygon = (Polygon) multiPolygon.getGeometryN(i);
+                var shape = Shape.of(polygon);
+                if (shape.nonEmpty())
+                    shapes = shapes.plus(shape);
+            }
+        } else if (polygonal instanceof Polygon) {
+            var shape = Shape.of((Polygon) polygonal);
+            if (shape.nonEmpty())
+                shapes = shapes.plus(shape);
+        } else {
+            throw new GinsuException.IllegalArgument(Objects.toString(polygonal));
+        }
 
-		@Override
-		public Aggregation<MultiShape, MultiShape> append(MultiShape element) {
-			if (element instanceof NotEmpty) {
-				return new MultiAgg(TreePVector.<Shape>empty().plusAll(((NotEmpty) element).shapes));
-			} else {
-				return new MultiAgg(TreePVector.empty());
-			}
-		}
-	};
+        return !shapes.isEmpty() ? new NotEmpty(shapes, (Geometry) polygonal) : EMPTY;
+    }
 
-	public abstract boolean nonEmpty();
+    public static MultiShape of(Shape shape) {
+        return shape.nonEmpty() ? new NotEmpty(TreePVector.singleton(shape), null) : EMPTY;
+    }
 
-	public static MultiShape of(Iterable<Shape> shapes) {
-		var vector = TreePVector.<Shape>empty();
-		for (var shape : shapes) {
-			if (shape.nonEmpty())
-				vector = vector.plus(shape);
-		}
+    public static MultiShape of(Iterable<Shape> shapes) {
+        var vector = TreePVector.<Shape>empty();
+        for (var shape : shapes) {
+            if (shape.nonEmpty())
+                vector = vector.plus(shape);
+        }
 
-		return !vector.isEmpty() ? new NotEmpty(vector) : EMPTY;
-	}
+        return !vector.isEmpty() ? new NotEmpty(vector, null) : EMPTY;
+    }
 
-	public static MultiShape of(Shape shape) {
-		return shape.nonEmpty() ? new NotEmpty(TreePVector.singleton(shape)) : EMPTY;
-	}
+    public abstract Geometry getSource();
 
-	public static MultiShape of(LineString lineString) {
-		if (!lineString.isEmpty())
-			return new NotEmpty(TreePVector.singleton(Shape.of(lineString)));
-		else
-			return EMPTY;
-	}
+    public abstract boolean nonEmpty();
 
-	public static MultiShape of(MultiLineString multiLineString) {
-		if (!multiLineString.isEmpty()) {
-			PVector<Shape> vector = Ginsu
-				.mapToVector(Ginsu.components(multiLineString), g -> Shape.of((LineString) g));
+    private static class Empty extends MultiShape {
+        @Override
+        public Geometry getSource() {
+            return null;
+        }
 
-			return new NotEmpty(vector);
-		} else
-			return EMPTY;
-	}
+        @Override
+        public Iterator<Shape> iterator() {
+            return Collections.emptyIterator();
+        }
 
-	public static MultiShape of(MultiPolygon multiPolygon) {
-		if (!multiPolygon.isEmpty()) {
-			PVector<Shape> vector = Ginsu
-				.mapToVector(Ginsu.components(multiPolygon), g -> Shape.of((Polygon) g));
+        @Override
+        public boolean nonEmpty() {
+            return false;
+        }
 
-			return new NotEmpty(vector);
-		} else
-			return EMPTY;
-	}
+        @Override
+        public MultiShape plus(MultiShape other) {
+            return other;
+        }
+    }
 
-	public static MultiShape of(Polygon polygon) {
-		if (!polygon.isEmpty()) {
-			return new NotEmpty(TreePVector.singleton(Shape.of(polygon)));
-		} else
-			return EMPTY;
-	}
+    private static class NotEmpty extends MultiShape {
 
-	public static MultiPolygon toMultiPolygon(MultiShape multiShape, GeometryFactory factory) {
-		if (multiShape.nonEmpty()) {
-			return factory
-				.createMultiPolygon(Ginsu.mapToArray(multiShape, shape -> toPolygon(shape, factory), Polygon[]::new));
-		} else {
-			return factory.createMultiPolygon();
-		}
-	}
+        private final PVector<Shape> shapes;
+        private final Geometry source;
 
-	public static Polygon toPolygon(Shape shape, GeometryFactory factory) {
-		if (shape.nonEmpty()) {
-			var it = shape.iterator();
-			var shell = factory.createLinearRing(Ginsu.next(it).getCoordinateSequence());
-			var holes = Ginsu.mapToArray(it, list -> factory.createLinearRing(list.getCoordinateSequence()), LinearRing[]::new);
-			return factory.createPolygon(shell, holes);
-		} else {
-			return factory.createPolygon();
-		}
-	}
+        public NotEmpty(PVector<Shape> shapes, Geometry source) {
+            this.shapes = shapes;
+            this.source = source;
+        }
 
-	private static class MultiAgg implements Aggregation<MultiShape, MultiShape> {
+        @Override
+        public Geometry getSource() {
+            return source;
+        }
 
-		private final PVector<Shape> shapes;
+        @Override
+        public Iterator<Shape> iterator() {
+            return shapes.iterator();
+        }
 
-		public MultiAgg(PVector<Shape> shapes) {
-			this.shapes = shapes;
-		}
+        @Override
+        public boolean nonEmpty() {
+            return true;
+        }
 
-		@Override
-		public MultiShape aggregate() {
-			return !shapes.isEmpty() ? new NotEmpty(shapes) : EMPTY;
-		}
-
-		@Override
-		public Aggregation<MultiShape, MultiShape> append(MultiShape element) {
-			if (element instanceof NotEmpty) {
-				return new MultiAgg(shapes.plusAll(((NotEmpty) element).shapes));
-			} else {
-				return this;
-			}
-		}
-	}
-
-	private static class Empty extends MultiShape {
-
-		@Override
-		public Iterator<Shape> iterator() {
-			return Collections.emptyIterator();
-		}
-
-		@Override
-		public boolean nonEmpty() {
-			return false;
-		}
-	}
-
-	private static class NotEmpty extends MultiShape {
-
-		private final PVector<Shape> shapes;
-
-		public NotEmpty(PVector<Shape> shapes) {
-			this.shapes = shapes;
-		}
-
-		@Override
-		public boolean nonEmpty() {
-			return true;
-		}
-
-		@Override
-		public Iterator<Shape> iterator() {
-			return shapes.iterator();
-		}
-	}
+        @Override
+        public MultiShape plus(MultiShape other) {
+            return other instanceof NotEmpty ? new NotEmpty(shapes.plusAll(((NotEmpty) other).shapes), null) : this;
+        }
+    }
 }

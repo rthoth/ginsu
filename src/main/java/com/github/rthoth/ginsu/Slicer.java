@@ -5,86 +5,83 @@ import com.github.rthoth.ginsu.Knife.Y;
 import org.locationtech.jts.geom.*;
 import org.pcollections.PVector;
 
-import javax.validation.constraints.NotNull;
+import java.util.Objects;
 
-@SuppressWarnings("unused")
 public class Slicer {
 
-	public static final double DEFAULT_OFFSET = 1e-8;
+    private final PVector<X> x;
+    private final PVector<Y> y;
 
-	private final DetectionGrid grid;
-	private final PVector<X> x;
-	private final PVector<Y> y;
+    @SuppressWarnings("unused")
+    public Slicer(double[] x, double[] y) {
+        this(x, y, Ginsu.DEFAULT_OFFSET, Ginsu.DEFAULT_EXTRUSION);
+    }
 
-	public Slicer(@NotNull double[] x, @NotNull double y[]) {
-		this(x, y, DEFAULT_OFFSET);
-	}
+    public Slicer(double[] x, double[] y, double offset, double extrusion) {
+        this(Ginsu.mapTo(x, v -> new X(v, offset, extrusion)), Ginsu.mapTo(y, v -> new Y(v, offset, extrusion)));
+    }
 
-	public Slicer(@NotNull double[] x, @NotNull double y[], double offset) {
-		this(Ginsu.mapToVector(x, v -> new X(v, offset)), Ginsu.mapToVector(y, v -> new Y(v, offset)));
-	}
+    public Slicer(PVector<X> x, PVector<Y> y) {
+        isValid(x);
+        isValid(y);
+        this.x = x;
+        this.y = y;
+    }
 
-	public Slicer(@NotNull PVector<X> x, @NotNull PVector<Y> y) {
-		this.x = x;
-		this.y = y;
-		grid = new DetectionGrid(x, y);
-	}
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    private static <K extends Knife<K>> void isValid(PVector<K> vector) {
+        if (!vector.isEmpty()) {
+            final var iterator = vector.iterator();
+            iterator.hasNext();
+            var current = iterator.next();
 
-	public Slicer extrude(final double extrusion) {
-		if (extrusion != 0D) {
-			return new Slicer(Ginsu.mapToVector(x, it -> it.extrude(extrusion)), Ginsu.mapToVector(y, it -> it.extrude(extrusion)));
-		} else {
-			return this;
-		}
-	}
+            while (iterator.hasNext()) {
+                var next = iterator.next();
+                if (current.compareTo(next) < 0)
+                    current = next;
+                else
+                    throw new GinsuException.InvalidSequence(vector.toString());
+            }
+        }
+    }
 
-	public Grid<? extends GeometryCollection> apply(Geometry geometry) {
-		return apply(geometry, Order.AUTOMATIC);
-	}
+    public Grid<? extends Geometry> slice(Geometry geometry) {
+        return slice(geometry, Order.AUTOMATIC);
+    }
 
-	public Grid<? extends GeometryCollection> apply(Geometry geometry, Order order) {
-		if (geometry instanceof Polygon) {
-			return apply((Polygon) geometry, order);
-		} else if (geometry instanceof MultiPolygon) {
-			return apply((MultiPolygon) geometry, order);
-		} else if (geometry instanceof LineString) {
-			return apply((LineString) geometry, order);
-		} else if (geometry instanceof MultiLineString) {
-			return apply((MultiLineString) geometry, order);
-		} else {
-			throw new UnsupportedOperationException();
-		}
-	}
+    public Grid<? extends Geometry> slice(Geometry geometry, Order order) {
+        if (geometry instanceof Polygonal) {
+            return polygonal((Polygonal) geometry, order);
+        } else if (geometry instanceof Lineal) {
+            return lineal((Lineal) geometry, order);
+        } else if (geometry instanceof Puntal) {
+            return puntual((Puntal) geometry, order);
+        } else {
+            throw new GinsuException.Unsupported(Objects.toString(geometry, "null"));
+        }
+    }
 
-	public Grid<MultiPolygon> apply(Polygon polygon) {
-		return apply(polygon, Order.AUTOMATIC);
-	}
+    public Grid<MultiPoint> puntual(Puntal puntal) {
+        return this.puntual(puntal, Order.AUTOMATIC);
+    }
 
-	public Grid<MultiPolygon> apply(Polygon polygon, Order order) {
-		return new PolygonSlicer(polygon, order, grid).getGrid();
-	}
+    public Grid<MultiPoint> puntual(Puntal puntal, Order order) {
+        throw new GinsuException.Unsupported("");
+    }
 
-	public Grid<MultiPolygon> apply(MultiPolygon multiPolygon) {
-		return apply(multiPolygon, Order.AUTOMATIC);
-	}
+    public Grid<MultiLineString> lineal(Lineal lineal) {
+        return this.lineal(lineal, Order.AUTOMATIC);
+    }
 
-	public Grid<MultiPolygon> apply(MultiPolygon multiPolygon, Order order) {
-		return new PolygonSlicer(multiPolygon, order, grid).getGrid();
-	}
+    public Grid<MultiLineString> lineal(Lineal lineal, Order order) {
+        throw new GinsuException.Unsupported("");
+    }
 
-	public Grid<MultiLineString> apply(LineString lineString) {
-		return apply(lineString, Order.AUTOMATIC);
-	}
+    public Grid<MultiPolygon> polygonal(Polygonal polygonal) {
+        return this.polygonal(polygonal, Order.AUTOMATIC);
+    }
 
-	public Grid<MultiLineString> apply(LineString lineString, Order order) {
-		return new LineStringSlicer(lineString, order, grid).getGrid();
-	}
-
-	public Grid<MultiLineString> apply(MultiLineString multiLineString) {
-		return apply(multiLineString, Order.AUTOMATIC);
-	}
-
-	public Grid<MultiLineString> apply(MultiLineString multiLineString, Order order) {
-		return new LineStringSlicer(multiLineString, order, grid).getGrid();
-	}
+    public Grid<MultiPolygon> polygonal(Polygonal polygonal, Order order) {
+        return new SliceGrid<>(x, y, MultiShape.of(polygonal), new PolygonSlicer(((Geometry) polygonal).getFactory()), order).getResult();
+    }
 }

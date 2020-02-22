@@ -1,181 +1,219 @@
 package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.geom.Coordinate;
-import org.pcollections.Empty;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-public abstract class Cell<K extends Knife<K>> {
+import java.util.Comparator;
+import java.util.Objects;
 
-	public abstract int positionOf(Coordinate coordinate);
+public abstract class Cell {
 
-	public abstract Coordinate intersection(Coordinate previous, Coordinate currentCoordinate, int position);
+    public static final int LOWER = -2;
+    public static final int LOWER_BORDER = -1;
+    public static final int MIDDLE = 0;
+    public static final int UPPER_BORDER = 1;
+    public static final int UPPER = 2;
 
-	public abstract double ordinateOf(Coordinate coordinate);
+    @SuppressWarnings("ComparatorCombinators")
+    public static final Comparator<Intersection> INTERSECTION_COMPARATOR = (i1, i2) -> Double.compare(i1.ordinate, i2.ordinate);
 
-	public static class Lower<K extends Knife<K>> extends Cell<K> {
+    public static <K extends Knife<K>> PVector<Cell> from(PVector<K> knives) {
+        var cells = TreePVector.<Cell>empty();
 
-		private final K upper;
+        if (!knives.isEmpty()) {
+            var previous = knives.get(0);
+            var index = 1;
 
-		public Lower(K upper) {
-			this.upper = upper;
-		}
+            cells = cells.plus(new Lower<>(knives.get(0).getUpper()));
+            for (; index < knives.size(); index++) {
+                var current = knives.get(index);
+                cells = cells.plus(new Middle<>(previous.getLower(), current.getUpper()));
+                previous = current;
+            }
 
-		@Override
-		public Coordinate intersection(Coordinate origin, Coordinate target, int position) {
-			if (position == 1 || position == 2) {
-				return upper.intersection(origin, target);
-			} else {
-				throw new IllegalArgumentException(String.valueOf(position));
-			}
-		}
+            cells = cells.plus(new Upper<>(previous.getLower()));
+        }
 
-		@Override
-		public double ordinateOf(Coordinate coordinate) {
-			return upper.ordinateOf(coordinate);
-		}
+        return cells;
+    }
 
-		@Override
-		public int positionOf(Coordinate coordinate) {
-			switch (upper.positionOf(coordinate)) {
-				case 1:
-					return 2;
+    public abstract Intersection computeIntersection(Coordinate origin, Coordinate target, int position);
 
-				case -1:
-					return 0;
+    public abstract Intersection createIntersection(Coordinate coordinate, int position);
 
-				case 0:
-					return 1;
+    public abstract int positionOf(Coordinate coordinate);
 
-				default:
-					throw new IllegalStateException(String.valueOf(upper.positionOf(coordinate)));
-			}
-		}
+    public static class Intersection {
+        public final double ordinate;
+        public final int border;
+        public final Coordinate coordinate;
 
-		@Override
-		public String toString() {
-			return "Lower(" + upper + ")";
-		}
-	}
+        public Intersection(double ordinate, int border, Coordinate coordinate) {
+            this.ordinate = ordinate;
+            this.coordinate = coordinate;
+            if (border < 0)
+                this.border = LOWER_BORDER;
+            else if (border > 0)
+                this.border = UPPER_BORDER;
+            else
+                throw new GinsuException.IllegalArgument(Integer.toString(border));
+        }
 
-	public static class Middle<K extends Knife<K>> extends Cell<K> {
+        @Override
+        public String toString() {
+            return (border == LOWER_BORDER ? "L[" : "U[") + ordinate + "]";
+        }
+    }
 
-		private final K lower;
+    public static class Lower<K extends Knife<K>> extends Cell {
 
-		private final K upper;
+        private final K upper;
 
-		public Middle(K lower, K upper) {
-			assert lower.compareTo(upper) < 0 : "Invalid: " + lower + " < " + upper;
-			this.lower = lower;
-			this.upper = upper;
-		}
+        public Lower(K upper) {
+            this.upper = upper;
+        }
 
-		@Override
-		public Coordinate intersection(Coordinate origin, Coordinate target, int position) {
-			if (position == -2 || position == -1) {
-				return lower.intersection(origin, target);
-			} else if (position == 2 || position == 1) {
-				return upper.intersection(origin, target);
-			} else {
-				throw new IllegalArgumentException(String.valueOf(position));
-			}
-		}
+        private K getKnife(int position) {
+            switch (position) {
+                case UPPER:
+                case UPPER_BORDER:
+                    return upper;
+                default:
+                    throw new GinsuException.IllegalArgument(Integer.toString(position));
+            }
+        }
 
-		@Override
-		public double ordinateOf(Coordinate coordinate) {
-			return upper.ordinateOf(coordinate);
-		}
+        @Override
+        public Intersection computeIntersection(Coordinate origin, Coordinate target, int position) {
+            var knife = getKnife(position);
+            var coordinate = knife.intersection(origin, target);
+            return new Intersection(knife.ordinateOf(coordinate), position, coordinate);
+        }
 
-		@Override
-		public int positionOf(Coordinate coordinate) {
-			switch (lower.positionOf(coordinate)) {
-				case -1:
-					return -2;
+        @Override
+        public Intersection createIntersection(Coordinate coordinate, int position) {
+            return new Intersection(getKnife(position).ordinateOf(coordinate), position, null);
+        }
 
-				case 0:
-					return -1;
-			}
+        @Override
+        public int positionOf(Coordinate coordinate) {
+            switch (upper.positionOf(coordinate)) {
+                case -1:
+                    return MIDDLE;
+                case 1:
+                    return UPPER;
+                case 0:
+                    return UPPER_BORDER;
+                default:
+                    throw new GinsuException.IllegalArgument(Objects.toString(coordinate));
+            }
+        }
+    }
 
-			switch (upper.positionOf(coordinate)) {
-				case 1:
-					return 2;
+    public static class Middle<K extends Knife<K>> extends Cell {
 
-				case 0:
-					return 1;
-			}
+        private final K lower;
+        private final K upper;
 
-			return 0;
-		}
+        public Middle(K lower, K upper) {
+            this.lower = lower;
+            this.upper = upper;
+        }
 
-		@Override
-		public String toString() {
-			return "Middle(" + lower + ", " + upper + ")";
-		}
-	}
+        private K getKnife(int position) {
+            switch (position) {
+                case LOWER:
+                case LOWER_BORDER:
+                    return lower;
 
-	public static class Upper<K extends Knife<K>> extends Cell<K> {
+                case UPPER:
+                case UPPER_BORDER:
+                    return upper;
 
-		private final K lower;
+                default:
+                    throw new GinsuException.IllegalArgument(Integer.toString(position));
+            }
+        }
 
-		public Upper(K lower) {
-			this.lower = lower;
-		}
+        @Override
+        public Intersection computeIntersection(Coordinate origin, Coordinate target, int position) {
+            var knife = getKnife(position);
+            var coordinate = knife.intersection(origin, target);
+            return new Intersection(knife.ordinateOf(coordinate), position, coordinate);
+        }
 
-		@Override
-		public Coordinate intersection(Coordinate origin, Coordinate target, int position) {
-			if (position == -2 || position == -1) {
-				return lower.intersection(origin, target);
-			} else {
-				throw new IllegalArgumentException(String.valueOf(position));
-			}
-		}
+        @Override
+        public Intersection createIntersection(Coordinate coordinate, int position) {
+            return new Intersection(getKnife(position).ordinateOf(coordinate), position, null);
+        }
 
-		@Override
-		public double ordinateOf(Coordinate coordinate) {
-			return lower.ordinateOf(coordinate);
-		}
+        @Override
+        public int positionOf(Coordinate coordinate) {
+            switch (lower.positionOf(coordinate)) {
+                case -1:
+                    return LOWER;
+                case 1:
+                    switch (upper.positionOf(coordinate)) {
+                        case 1:
+                            return UPPER;
+                        case -1:
+                            return MIDDLE;
+                        case 0:
+                            return UPPER_BORDER;
+                        default:
+                            throw new GinsuException.IllegalArgument(Objects.toString(coordinate));
+                    }
+                case 0:
+                    return LOWER_BORDER;
+                default:
+                    throw new GinsuException.IllegalArgument(Objects.toString(coordinate));
+            }
+        }
+    }
 
-		@Override
-		public int positionOf(Coordinate coordinate) {
-			switch (lower.positionOf(coordinate)) {
-				case -1:
-					return -2;
+    public static class Upper<K extends Knife<K>> extends Cell {
 
-				case 1:
-					return 0;
+        private final K lower;
 
-				case 0:
-					return -1;
+        public Upper(K lower) {
+            this.lower = lower;
+        }
 
-				default:
-					throw new IllegalStateException(String.valueOf(lower.positionOf(coordinate)));
-			}
-		}
+        private K getKnife(int position) {
+            switch (position) {
+                case LOWER:
+                case LOWER_BORDER:
+                    return lower;
+                default:
+                    throw new GinsuException.IllegalArgument(Integer.toString(position));
+            }
+        }
 
-		@Override
-		public String toString() {
-			return "Upper(" + lower + ")";
-		}
-	}
+        @Override
+        public Intersection computeIntersection(Coordinate origin, Coordinate target, int position) {
+            var knife = getKnife(position);
+            var coordinate = knife.intersection(origin, target);
+            return new Intersection(knife.ordinateOf(coordinate), position, coordinate);
+        }
 
-	public static <K extends Knife<K>> PVector<Cell<K>> create(Iterable<K> knives) {
-		var it = knives.iterator();
+        @Override
+        public Intersection createIntersection(Coordinate coordinate, int position) {
+            return new Intersection(getKnife(position).ordinateOf(coordinate), position, null);
+        }
 
-		if (it.hasNext()) {
-			var previous = it.next();
-			var current = previous;
-			var ret = TreePVector.<Cell<K>>singleton(new Lower<>(previous.getUpper()));
-
-			while (it.hasNext()) {
-				current = it.next();
-				ret = ret.plus(new Middle<>(previous.getLower(), current.getUpper()));
-				previous = current;
-			}
-
-			return ret.plus(new Upper<>(previous.getLower()));
-
-		} else {
-			return Empty.vector();
-		}
-	}
+        @Override
+        public int positionOf(Coordinate coordinate) {
+            switch (lower.positionOf(coordinate)) {
+                case -1:
+                    return LOWER;
+                case 1:
+                    return MIDDLE;
+                case 0:
+                    return LOWER_BORDER;
+                default:
+                    throw new GinsuException.IllegalArgument(Objects.toString(coordinate));
+            }
+        }
+    }
 }

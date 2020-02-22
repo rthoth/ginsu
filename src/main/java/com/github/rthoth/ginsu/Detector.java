@@ -1,189 +1,180 @@
 package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.geom.Coordinate;
+import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
 import javax.validation.constraints.NotNull;
-import java.util.LinkedList;
 
-import static com.github.rthoth.ginsu.Location.*;
+import static com.github.rthoth.ginsu.Detection.*;
 
-public class Detector<K extends Knife<K>> {
+public class Detector {
 
-	private final Cell<K> cell;
-	private final Event.Factory factory;
+    private final Cell cell;
+    private final Event.Factory factory;
+    private PVector<Event> events = null;
+    private Coordinate previousCoordinate;
+    private int previousIndex;
+    private int firstLocation;
+    private int previousPosition;
+    private int currentPosition;
+    private int currentIndex;
+    private Coordinate currentCoordinate;
+    private Event candidate;
+    private Coordinate firstCoordinate;
 
-	private final LinkedList<Event> events = new LinkedList<>();
-	private Event candidate = null;
-	private Coordinate previousCoordinate;
-	private int previousPosition;
-	private Location previousLocation;
-	private Location firstLocation;
-	private Location currentLocation;
-	private int currentPosition;
-	private Coordinate currentCoordinate;
-	private int previousIndex;
-	private int currentIndex;
 
-	public Detector(Cell<K> cell, Event.Factory factory) {
-		this.cell = cell;
-		this.factory = factory;
-	}
+    public Detector(Cell cell, Event.Factory factory) {
+        this.cell = cell;
+        this.factory = factory;
+    }
 
-	public void first(Coordinate coordinate) {
-		previousCoordinate = coordinate;
-		previousIndex = 0;
-		previousPosition = cell.positionOf(coordinate);
-		previousLocation = Location.of(previousPosition);
-		firstLocation = previousLocation;
-	}
+    public void check(int index, Coordinate coordinate) {
+        currentPosition = cell.positionOf(coordinate);
+        currentCoordinate = coordinate;
+        currentIndex = index;
 
-	public void check(Coordinate coordinate, int index) {
-		currentPosition = cell.positionOf(coordinate);
+        if (currentPosition != previousPosition) {
 
-		if (currentPosition != previousPosition) {
-			currentCoordinate = coordinate;
-			currentLocation = Location.of(currentPosition);
-			currentIndex = index;
+            if (firstLocation == BORDER && location(currentPosition) != BORDER)
+                firstLocation = location(currentPosition);
 
-			if (firstLocation == BORDER && currentLocation != BORDER)
-				firstLocation = currentLocation;
+            if (currentPosition * previousPosition != 4)
+                detect();
 
-			detect();
-			previousPosition = currentPosition;
-			previousLocation = currentLocation;
-		}
+            previousPosition = currentPosition;
+        }
 
-		previousIndex = index;
-		previousCoordinate = coordinate;
-	}
+        previousIndex = currentIndex;
+        previousCoordinate = coordinate;
+    }
 
-	public Detection last(Coordinate coordinate, int index, boolean closed) {
-		check(coordinate, index);
+    private void detect() {
+        int currentLocation = location(currentPosition);
+        int previousLocation = location(previousPosition);
 
-		if (closed) {
-			if (candidate instanceof Event.Out) {
-				if (!events.isEmpty() && events.peekFirst().index == 0) {
-					events.removeFirst();
-				} else {
-					pushCandidate();
-				}
-			}
-		} else if (candidate != null) {
-			pushCandidate();
-		}
+        switch (previousPosition * currentPosition) {
+            case 0:
+                if (currentLocation == INSIDE) {
+                    if (previousLocation == OUTSIDE) { // OUTSIDE -> INSIDE
+                        pushIn(currentIndex, cell.computeIntersection(previousCoordinate, currentCoordinate, previousPosition));
+                    } else if (previousLocation == BORDER) { // BORDER -> INSIDE
+                        if (candidate != null) {
+                            if (candidate.index != previousIndex) {
+                                pushCandidate();
+                                pushIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition));
+                            } else {
+                                candidate = null;
+                            }
+                        } else {
+                            pushIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition));
+                        }
+                    }
+                } else if (currentLocation == OUTSIDE) {
+                    pushOut(previousIndex, cell.computeIntersection(previousCoordinate, currentCoordinate, currentPosition));
+                } else if (currentLocation == BORDER) {
+                    candidate = factory.newOut(currentIndex, cell.createIntersection(currentCoordinate, currentPosition));
+                }
+                break;
+            case -4: // OUTSIDE -> INSIDE -> OUTSIDE
+                events = events.plus(factory.newIn(-1, cell.computeIntersection(previousCoordinate, currentCoordinate, previousPosition)));
+                events = events.plus(factory.newOut(-1, cell.computeIntersection(previousCoordinate, currentCoordinate, currentPosition)));
+                candidate = null;
+                break;
 
-		return Detection.of(TreePVector.from(events), factory.getIndexedCoordinateSequence(), cell, firstLocation);
-	}
+            case 2:
+                if (currentLocation == OUTSIDE) { // BORDER -> OUTSIDE
+                    if (candidate != null)
+                        pushCandidate();
+                }
+                break;
+            case -2:
+                if (currentLocation == OUTSIDE) { // BORDER -> INSIDE -> OUTSIDE
+                    if (candidate != null) {
+                        if (candidate.index != previousIndex) {
+                            pushCandidate();
+                        }
+                    } else {
+                        pushIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition));
+                    }
 
-	private void addEvent(Event event) {
-		if (event != null) {
-			events.addLast(event);
-			candidate = null;
-		} else {
-			throw new IllegalArgumentException();
-		}
-	}
+                    pushOut(previousIndex, cell.computeIntersection(previousCoordinate, currentCoordinate, currentPosition));
+                } else { // OUTSIDE -> INSIDE -> BORDER
+                    pushIn(currentIndex, cell.computeIntersection(previousCoordinate, currentCoordinate, previousPosition));
+                    candidate = factory.newOut(currentIndex, cell.createIntersection(currentCoordinate, currentPosition));
+                }
+                break;
 
-	private void detect() {
-		switch (currentPosition * previousPosition) {
-			case -4: // OUTSIDE -> INSIDE -> OUTSIDE
-				newIn(-1, previousPosition, cell.intersection(previousCoordinate, currentCoordinate, previousPosition));
-				newOut(-1, currentPosition, cell.intersection(previousCoordinate, currentCoordinate, currentPosition));
-				break;
+            case -1:  // BORDER -> INSIDE -> BORDER
+                if (candidate != null) {
+                    if (candidate.index != previousIndex) {
+                        pushCandidate();
+                        pushIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition));
+                    }
+                } else {
+                    events = events.plus(factory.newIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition)));
+                }
 
-			case 0: // OUTSIDE -> INSIDE || BORDER -> INSIDE || INSIDE -> BORDER || INSIDE -> OUTSIDE
-				if (previousLocation == OUTSIDE) {
-					newIn(currentIndex, previousPosition, cell.intersection(previousCoordinate, currentCoordinate, previousPosition));
-				} else if (currentLocation == OUTSIDE) {
-					newOut(previousIndex, currentPosition, cell.intersection(previousCoordinate, currentCoordinate, currentPosition));
-				} else if (currentLocation == BORDER) {
-					addCandidate(factory.newOut(currentIndex, currentPosition, cell.ordinateOf(currentCoordinate), null));
-				} else {
-					if (candidate instanceof Event.Out) {
-						if (candidate.getIndex() != previousIndex) {
-							pushCandidate();
-						} else {
-							candidate = null;
-						}
-					} else {
-						newIn(previousIndex, previousPosition);
-					}
-				}
+                candidate = factory.newOut(currentIndex, cell.createIntersection(currentCoordinate, currentPosition));
+                break;
+        }
+    }
 
-				break;
+    public void first(Coordinate coordinate) {
+        events = TreePVector.empty();
+        previousCoordinate = coordinate;
+        firstCoordinate = coordinate.copy();
+        previousIndex = 0;
+        previousPosition = cell.positionOf(coordinate);
+        firstLocation = location(previousPosition);
+        candidate = null;
+    }
 
-			case -2: // OUTSIDE -> INSIDE -> BORDER || BORDER -> INSIDE -> OUTSIDE
-				if (currentLocation == BORDER) {
-					newIn(currentIndex, previousPosition, cell.intersection(previousCoordinate, currentCoordinate, previousPosition));
-					addCandidate(factory.newOut(currentIndex, currentPosition, cell.ordinateOf(currentCoordinate), null));
-				} else {
-					if (candidate != null) {
-						if (candidate.getIndex() != previousIndex) {
-							pushCandidate();
-							newIn(previousIndex, previousPosition);
-						} else {
-							candidate = null;
-						}
-					} else {
-						newIn(previousIndex, previousPosition);
-					}
+    public Detection last(int index, Coordinate coordinate) {
+        check(index, coordinate);
 
-					newOut(previousIndex, currentPosition, cell.intersection(previousCoordinate, currentCoordinate, currentPosition));
-				}
-				break;
+        if (candidate != null) {
+            if (candidate.index == index) {
+                if (!events.isEmpty() && events.get(0).index == 0) {
+                    events = events.minus(0);
+                } else {
+                    pushCandidate();
+                }
+            } else {
+                pushCandidate();
+            }
+        }
 
-			case 2: // OUTSIDE -> BORDER || BORDER -> OUTSIDE
-				if (currentLocation == OUTSIDE) {
-					if (candidate instanceof Event.Out) {
-						pushCandidate();
-					}
-				}
-				break;
 
-			case -1: // BORDER -> INSIDE -> BORDER
-				if (candidate != null) {
-					if (candidate.getIndex() != previousIndex) {
-						pushCandidate();
-						newIn(previousIndex, previousPosition);
-					} else {
-						candidate = null;
-					}
-				} else {
-					newIn(previousIndex, previousPosition);
-				}
+        return new Detection(events, firstCoordinate.equals2D(coordinate), firstLocation, factory);
+    }
 
-				addCandidate(factory.newOut(currentIndex, currentPosition, cell.ordinateOf(currentCoordinate), null));
-				break;
+    private int location(int position) {
+        switch (position) {
+            case Cell.LOWER:
+            case Cell.UPPER:
+                return OUTSIDE;
 
-			default:
-				throw new IllegalStateException(String.valueOf(currentPosition * previousPosition));
-		}
-	}
+            case Cell.MIDDLE:
+                return INSIDE;
 
-	private void addCandidate(Event event) {
-		if (candidate == null) {
-			candidate = event;
-		} else {
-			throw new IllegalStateException("There already is a candidate " + candidate + "!");
-		}
-	}
+            default:
+                return BORDER;
+        }
+    }
 
-	private void pushCandidate() {
-		if (candidate != null) {
-			addEvent(candidate);
-		}
-	}
+    private void pushCandidate() {
+        events = events.plus(candidate);
+        candidate = null;
+    }
 
-	private void newIn(int index, int position) {
-		addEvent(factory.newIn(index, position, cell.ordinateOf(factory.getIndexedCoordinateSequence().get(index)), null));
-	}
+    private void pushIn(int index, @NotNull Cell.Intersection intersection) {
+        events = events.plus(factory.newIn(index, intersection));
+        candidate = null;
+    }
 
-	private void newIn(int index, int position, @NotNull Coordinate coordinate) {
-		addEvent(factory.newIn(index, position, cell.ordinateOf(coordinate), coordinate));
-	}
-
-	private void newOut(int index, int position, @NotNull Coordinate coordinate) {
-		addEvent(factory.newOut(index, position, cell.ordinateOf(coordinate), coordinate));
-	}
+    private void pushOut(int index, @NotNull Cell.Intersection intersection) {
+        events = events.plus(factory.newOut(index, intersection));
+        candidate = null;
+    }
 }

@@ -4,88 +4,99 @@ import java.util.Objects;
 
 public abstract class IntRange implements Comparable<IntRange> {
 
-	public static IntRange of(int value) {
-		return new Point(value);
-	}
+    public static IntRange point(int index) {
+        return new Point(index);
+    }
 
-	public static IntRange of(int from, int to) {
-		return from != to ? new Lane(from, to) : new Point(from);
-	}
+    public static IntRange range(int start, int size) {
+        if (size > 1)
+            return new Range(start, size);
+        else
+            return new Point(start);
+    }
 
-	public static class Lane extends IntRange {
+    private static class Range extends IntRange {
 
-		private final int from;
-		private final int to;
+        private final int start;
+        private final int stop;
 
-		public Lane(int from, int to) {
-			if (from >= to)
-				throw new IllegalArgumentException(from + " - " + to);
-			this.from = from;
-			this.to = to;
-		}
+        public Range(int start, int size) {
+            this.start = start;
+            this.stop = start + size - 1;
+        }
 
-		@Override
-		public int compareTo(IntRange o) {
-			if (o instanceof Lane) {
-				return compareTo((Lane) o);
-			} else if (o instanceof Point) {
-				return compareTo((Point) o);
-			} else
-				throw new IllegalArgumentException(Objects.toString(o));
-		}
+        @Override
+        public int compareTo(IntRange other) {
+            if (other instanceof Range)
+                return compareTo((Range) other);
 
-		private int compareTo(Lane lane) {
-			if (to <= lane.from)
-				return -1;
-			else
-				return from >= lane.to ? 1 : 0;
-		}
+            if (other instanceof Point)
+                return compareTo((Point) other);
 
-		private int compareTo(Point point) {
-			if (to < point.value)
-				return -1;
-			else
-				return from > point.value ? 1 : 0;
-		}
+            throw new GinsuException.IllegalArgument(Objects.toString(other));
+        }
 
-		@Override
-		public String toString() {
-			return "(" + from + ", " + to + ")";
-		}
-	}
+        private int compareTo(Point other) {
+            if (stop < other.start)
+                return -1;
 
-	public static class Point extends IntRange {
+            if (start > other.start)
+                return 1;
 
-		private final int value;
+            return 0;
+        }
 
-		public Point(int value) {
-			this.value = value;
-		}
+        private int compareTo(Range other) {
+            if (this != other) {
+                if (stop < other.start)
+                    return -1;
 
-		@Override
-		public int compareTo(IntRange o) {
-			if (o instanceof Point)
-				return compareTo((Point) o);
-			else if (o instanceof Lane)
-				return compareTo((Lane) o);
-			else
-				throw new IllegalArgumentException(Objects.toString(o));
-		}
+                if (start > other.stop)
+                    return 1;
 
-		private int compareTo(Point point) {
-			return Double.compare(value, point.value);
-		}
+                throw new GinsuException.IllegalState(this + " ∩ " + other);
+            } else {
+                return 0;
+            }
+        }
 
-		private int compareTo(Lane lane) {
-			if (value < lane.from)
-				return -1;
-			else
-				return value > lane.to ? 1 : 0;
-		}
+        @Override
+        public String toString() {
+            return "Range[" + start + ", " + stop + "]";
+        }
+    }
 
-		@Override
-		public String toString() {
-			return "(" + value + ")";
-		}
-	}
+    private static class Point extends IntRange {
+        private final int start;
+
+        public Point(int start) {
+            this.start = start;
+        }
+
+        @Override
+        public int compareTo(IntRange other) {
+            if (this != other) {
+                if (other instanceof Point)
+                    return Integer.compare(start, ((Point) other).start);
+                else if (other instanceof Range) {
+                    final var range = (Range) other;
+                    if (start < range.start)
+                        return -1;
+                    else if (start > range.stop)
+                        return 1;
+                    else
+                        return 0;
+                } else {
+                    throw new GinsuException.IllegalArgument(Objects.toString(other));
+                }
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "Point[" + start + "]";
+        }
+    }
 }

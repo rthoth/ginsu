@@ -1,116 +1,66 @@
 package com.github.rthoth.ginsu;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequence;
 
-import java.util.Comparator;
-import java.util.Objects;
+import javax.validation.constraints.NotNull;
 
-public abstract class Event {
+public final class Event {
 
-	public static final Comparator<Event> COMPARATOR = (e1, e2) ->
-		(e1 != e2) ? Double.compare(e1.ordinate, e2.ordinate) : 0;
+    private static final int IN = 1;
+    private static final int OUT = 2;
 
-	protected final IndexedCoordinateSequence sequence;
-	protected final int index;
-	protected final int position;
-	protected final Coordinate coordinate;
-	protected final double ordinate;
+    public final int index;
+    public final CoordinateSequence sequence;
+    public final int kind;
+    public final Cell.Intersection intersection;
 
-	public Event(IndexedCoordinateSequence sequence, int index, int position, double ordinate, Coordinate coordinate) {
-		assert position != 0 : "Invalid position " + position + "!";
-		this.sequence = sequence;
-		this.index = index;
-		this.position = position;
-		this.coordinate = coordinate;
-		this.ordinate = ordinate;
-	}
+    private Event(CoordinateSequence sequence, int index, int kind, Cell.Intersection intersection) {
+        this.sequence = sequence;
+        this.index = index;
+        this.kind = kind;
+        this.intersection = intersection;
+    }
 
-	public int getIndex() {
-		return index;
-	}
+    public static boolean isIn(Event event) {
+        return event != null && event.kind == IN;
+    }
 
-	public String getText() {
-		return "(" +
-			index +
-			", " +
-			position +
-			", " +
-			ordinate +
-			(coordinate != null ? ", (" + coordinate.getX() + ", " + coordinate.getY() + ")" : ", null") +
-			")";
-	}
+    public int border() {
+        return intersection.border;
+    }
 
-	public Coordinate getCoordinate() {
-		return coordinate != null ? coordinate : sequence.get(index);
-	}
+    public Double ordinate() {
+        return intersection.ordinate;
+    }
 
-	public CoordinateSequence getCoordinateSequence() {
-		return sequence.getCoordinateSequence();
-	}
+    @Override
+    public String toString() {
+        return String.format("%s(%d, %s, %s)", kind == IN ? "In" : "Out", index, intersection, intersection.coordinate != null ? "(" + intersection.coordinate.getX() + ", " + intersection.coordinate.getY() + ")" : "null");
+    }
 
-	public static class Factory {
+    public int sequenceSize() {
+        return sequence.size();
+    }
 
-		private final IndexedCoordinateSequence indexedCoordinateSequence;
+    public static class Factory {
 
-		public Factory(IndexedCoordinateSequence indexedCoordinateSequence) {
-			this.indexedCoordinateSequence = indexedCoordinateSequence;
-		}
+        private final CoordinateSequence sequence;
 
-		public In newIn(int index, int position, double ordinate, Coordinate coordinate) {
-			return new In(indexedCoordinateSequence, index, position, ordinate, coordinate);
-		}
+        public Factory(CoordinateSequence sequence) {
+            this.sequence = sequence;
+        }
 
-		public Out newOut(int index, int position, double ordinate, Coordinate coordinate) {
-			return new Out(indexedCoordinateSequence, index, position, ordinate, coordinate);
-		}
+        public CoordinateSequence getCoordinateSequence() {
+            return sequence;
+        }
 
-		public IndexedCoordinateSequence getIndexedCoordinateSequence() {
-			return indexedCoordinateSequence;
-		}
-	}
 
-	public static class In extends Event {
+        public Event newIn(int index, @NotNull Cell.Intersection intersection) {
+            return new Event(sequence, index, IN, intersection);
+        }
 
-		public In(IndexedCoordinateSequence indexedCoordinateSequence, int index, int position, double ordinate, Coordinate coordinate) {
-			super(indexedCoordinateSequence, index, position, ordinate, coordinate);
-		}
-
-		@Override
-		public boolean equals(Object obj) {
-			if (obj instanceof In) {
-				In other = (In) obj;
-				return other.index == index && other.position == position && Objects.equals(coordinate, other.coordinate);
-			} else {
-				return false;
-			}
-		}
-
-		@Override
-		public String toString() {
-			return "In" + getText();
-		}
-	}
-
-	public static class Out extends Event {
-
-		public Out(IndexedCoordinateSequence indexedCoordinateSequence, int index, int position, double ordinate, Coordinate coordinate) {
-			super(indexedCoordinateSequence, index, position, ordinate, coordinate);
-		}
-
-		@Override
-		public boolean equals(Object obj) {
-			if (obj instanceof Out) {
-				Out other = (Out) obj;
-				return other.index == index && other.position == position && Objects.equals(coordinate, other.coordinate);
-			} else {
-				return false;
-			}
-		}
-
-		@Override
-		public String toString() {
-			return "Out" + getText();
-		}
-	}
+        public Event newOut(int index, @NotNull Cell.Intersection intersection) {
+            return new Event(sequence, index, OUT, intersection);
+        }
+    }
 }
