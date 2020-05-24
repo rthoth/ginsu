@@ -14,12 +14,16 @@ public abstract class Grid<T extends Geometry> {
     protected final PVector<T> data;
 
     private Grid(int width, int height, PVector<T> data) {
-        if (width > 0 && height > 0 && width * height == data.size()) {
-            this.width = width;
-            this.height = height;
-            this.data = data;
+        if (width >= 0 && height >= 0) {
+            this.width = width != 0 ? width : 1;
+            this.height = height != 0 ? height : 1;
+
+            if (this.width * this.height == data.size())
+                this.data = data;
+            else
+                throw new GinsuException.IllegalArgument("Invalid data size!");
         } else {
-            throw new GinsuException.IllegalArgument("Invalid data!");
+            throw new GinsuException.IllegalArgument("Invalid grid size!");
         }
     }
 
@@ -46,7 +50,7 @@ public abstract class Grid<T extends Geometry> {
 
             @Override
             public boolean hasNext() {
-                return iy < height;
+                return ix < width && iy < height;
             }
 
             @Override
@@ -82,6 +86,10 @@ public abstract class Grid<T extends Geometry> {
 
         public <M> Entry<M> map(Function<T, M> mapper) {
             return new Entry<>(x, y, mapper.apply(value));
+        }
+
+        public <M> Entry<M> copy(M value) {
+            return new Entry<>(x, y, value);
         }
 
         @Override

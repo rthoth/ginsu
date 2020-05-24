@@ -32,11 +32,11 @@ public class CSBuilder {
 
             if (!first.getCoordinate(0).equals2D(last.getCoordinate(last.size() - 1))) {
                 if (first instanceof Segment.View) {
-                    return new SegmentCoordinateSequence(segments.plus(((Segment.View) first).pointView(0)));
+                    return new SegmentCoordinateSequence(segments.plus(((Segment.View) first).point(0)));
                 } else if (first instanceof Segment.PointView || first instanceof Segment.Point) {
                     return new SegmentCoordinateSequence(segments.plus(first));
                 } else if (first instanceof Segment.Line) {
-                    return new SegmentCoordinateSequence(segments.plus(((Segment.Line) first).pointView(0)));
+                    return new SegmentCoordinateSequence(segments.plus(((Segment.Line) first).point(0)));
                 } else {
                     throw new GinsuException.IllegalState("Invalid segments!");
                 }
@@ -46,5 +46,9 @@ public class CSBuilder {
         } else {
             throw new GinsuException.IllegalState("It is empty!");
         }
+    }
+
+    public CoordinateSequence build() {
+        return new SegmentCoordinateSequence(segments);
     }
 }

@@ -67,4 +67,9 @@ public class DetectionTest extends AbstractTest implements DetectionInterface {
                         "Out(11, U[2.0], (2.0, -1.0))"
                 );
     }
+
+    @Test
+    public void issue002() {
+
+    }
 }

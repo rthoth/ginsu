@@ -1,7 +1,6 @@
 package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.geom.CoordinateSequence;
-import org.locationtech.jts.geom.CoordinateSequences;
 import org.locationtech.jts.geom.Geometry;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
@@ -38,7 +37,6 @@ public class SliceGrid<T extends Geometry> {
         }
 
         final var lastCoordinate = sequence.getCoordinate(lastIndex);
-        final var closed = CoordinateSequences.isRing(sequence);
         var detections = TreePVector.<Detection>empty();
         for (var detector : detectors) {
             detections = detections.plus(detector.last(lastIndex, lastCoordinate));
@@ -54,6 +52,7 @@ public class SliceGrid<T extends Geometry> {
     private PVector<MultiShape> slice(PVector<Cell> cells, Shape shape, GeometrySlicer<T> slicer) {
         final var iterator = shape.iterator();
         var current = Ginsu.next(iterator);
+
         var classified = Ginsu.map(detect(cells, current), detection -> slicer.classify(detection, shape));
         var unreadyVector = Ginsu.collect(Ginsu.zipWithIndex(classified), entry ->
                 entry.value instanceof Detection.Unready ?
@@ -117,6 +116,7 @@ public class SliceGrid<T extends Geometry> {
                 return Ginsu.map(cells, cell -> MultiShape.EMPTY);
             }
         } else {
+            // TODO: Check!
             return TreePVector.empty();
         }
     }

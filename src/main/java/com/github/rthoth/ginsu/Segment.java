@@ -56,6 +56,79 @@ public abstract class Segment {
 
     public abstract int size();
 
+    public static class Backward extends View {
+        public Backward(int start, int limit, int size, boolean isRing, CoordinateSequence sequence) {
+            super(start, limit, size, isRing, sequence);
+        }
+
+        @Override
+        protected int mapIndex(int index) {
+            return index <= start ? start - index : limit - (index - start);
+        }
+    }
+
+    public static class Forward extends View {
+        public Forward(int start, int limit, int size, boolean isRing, CoordinateSequence sequence) {
+            super(start, limit, size, isRing, sequence);
+        }
+
+        @Override
+        protected int mapIndex(int index) {
+            return (start + index) % limit;
+        }
+    }
+
+    public static class Line extends Segment {
+        private final Coordinate start;
+        private final Coordinate stop;
+
+        public Line(Coordinate start, Coordinate stop) {
+            this.start = start;
+            this.stop = stop;
+        }
+
+        @Override
+        public Coordinate getCoordinate(int index) {
+            switch (index) {
+                case 0:
+                    return start;
+                case 1:
+                    return stop;
+                default:
+                    throw new GinsuException.IllegalArgument(Integer.toString(index));
+            }
+        }
+
+        @Override
+        public void getCoordinate(int index, Coordinate coordinate) {
+            coordinate.setCoordinate(getCoordinate(index));
+        }
+
+        @Override
+        public double getOrdinate(int index, int ordinateIndex) {
+            return getCoordinate(index).getOrdinate(ordinateIndex);
+        }
+
+        @Override
+        public double getX(int index) {
+            return getCoordinate(index).getX();
+        }
+
+        @Override
+        public double getY(int index) {
+            return getCoordinate(index).getY();
+        }
+
+        public Segment point(int index) {
+            return new Point(getCoordinate(index));
+        }
+
+        @Override
+        public int size() {
+            return 2;
+        }
+    }
+
     public static class Point extends Segment {
         private final Coordinate point;
 
@@ -104,25 +177,26 @@ public abstract class Segment {
         }
     }
 
-    public static class Line extends Segment {
-        private final Coordinate start;
-        private final Coordinate stop;
+    public static class PointView extends Segment {
+        private final int index;
+        private final CoordinateSequence sequence;
 
-        public Line(Coordinate start, Coordinate stop) {
-            this.start = start;
-            this.stop = stop;
+        public PointView(int index, CoordinateSequence sequence) {
+            this.index = index;
+            this.sequence = sequence;
+        }
+
+        private void check(int index) {
+            if (index != 0)
+                throw new GinsuException.InvalidIndex(index);
         }
 
         @Override
         public Coordinate getCoordinate(int index) {
-            switch (index) {
-                case 0:
-                    return start;
-                case 1:
-                    return stop;
-                default:
-                    throw new GinsuException.IllegalArgument(Integer.toString(index));
-            }
+            if (index != 0)
+                throw new GinsuException.IllegalArgument(Integer.toString(index));
+
+            return sequence.getCoordinate(this.index);
         }
 
         @Override
@@ -145,13 +219,9 @@ public abstract class Segment {
             return getCoordinate(index).getY();
         }
 
-        public Segment pointView(int index) {
-            return new Point(getCoordinate(index));
-        }
-
         @Override
         public int size() {
-            return 2;
+            return 1;
         }
     }
 
@@ -198,35 +268,13 @@ public abstract class Segment {
 
         protected abstract int mapIndex(int index);
 
-        public Segment pointView(int index) {
+        public Segment point(int index) {
             return new PointView(mapIndex(index), sequence);
         }
 
         @Override
         public int size() {
             return size;
-        }
-    }
-
-    public static class Forward extends View {
-        public Forward(int start, int limit, int size, boolean isRing, CoordinateSequence sequence) {
-            super(start, limit, size, isRing, sequence);
-        }
-
-        @Override
-        protected int mapIndex(int index) {
-            return (start + index) % limit;
-        }
-    }
-
-    public static class Backward extends View {
-        public Backward(int start, int limit, int size, boolean isRing, CoordinateSequence sequence) {
-            super(start, limit, size, isRing, sequence);
-        }
-
-        @Override
-        protected int mapIndex(int index) {
-            return index <= start ? start - index : limit - (index - start);
         }
     }
 
@@ -267,49 +315,6 @@ public abstract class Segment {
         @Override
         public int size() {
             return segment.size();
-        }
-    }
-
-    public static class PointView extends Segment {
-        private final int index;
-        private final CoordinateSequence sequence;
-
-        public PointView(int index, CoordinateSequence sequence) {
-            this.index = index;
-            this.sequence = sequence;
-        }
-
-        @Override
-        public Coordinate getCoordinate(int index) {
-            if (index != 0)
-                throw new GinsuException.IllegalArgument(Integer.toString(index));
-
-            return sequence.getCoordinate(this.index);
-        }
-
-        @Override
-        public void getCoordinate(int index, Coordinate coordinate) {
-            coordinate.setCoordinate(getCoordinate(index));
-        }
-
-        @Override
-        public double getOrdinate(int index, int ordinateIndex) {
-            return getCoordinate(index).getOrdinate(ordinateIndex);
-        }
-
-        @Override
-        public double getX(int index) {
-            return getCoordinate(index).getX();
-        }
-
-        @Override
-        public double getY(int index) {
-            return getCoordinate(index).getY();
-        }
-
-        @Override
-        public int size() {
-            return 1;
         }
     }
 }

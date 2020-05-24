@@ -25,6 +25,11 @@ public final class Event {
         return event != null && event.kind == IN;
     }
 
+    @SuppressWarnings("unused")
+    public static boolean isOut(Event event) {
+        return event != null && event.kind == OUT;
+    }
+
     public int border() {
         return intersection.border;
     }

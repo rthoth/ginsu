@@ -11,6 +11,8 @@ public class Slicer {
 
     private final PVector<X> x;
     private final PVector<Y> y;
+    private final double offset;
+    private final double extrusion;
 
     @SuppressWarnings("unused")
     public Slicer(double[] x, double[] y) {
@@ -18,14 +20,16 @@ public class Slicer {
     }
 
     public Slicer(double[] x, double[] y, double offset, double extrusion) {
-        this(Ginsu.mapTo(x, v -> new X(v, offset, extrusion)), Ginsu.mapTo(y, v -> new Y(v, offset, extrusion)));
+        this(Ginsu.map(x, v -> new X(v, offset, extrusion)), Ginsu.map(y, v -> new Y(v, offset, extrusion)), offset, extrusion);
     }
 
-    public Slicer(PVector<X> x, PVector<Y> y) {
+    protected Slicer(PVector<X> x, PVector<Y> y, double offset, double extrusion) {
         isValid(x);
         isValid(y);
         this.x = x;
         this.y = y;
+        this.offset = offset;
+        this.extrusion = extrusion;
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
@@ -45,6 +49,15 @@ public class Slicer {
         }
     }
 
+    public Slicer extrude(double extrusion) {
+        if (extrusion != this.extrusion) {
+            return new Slicer(Ginsu.map(x, k -> k.extrude(extrusion)), Ginsu.map(y, k -> k.extrude(extrusion)), offset, extrusion);
+        } else {
+            return this;
+        }
+    }
+
+    @SuppressWarnings("unused")
     public Grid<? extends Geometry> slice(Geometry geometry) {
         return slice(geometry, Order.AUTOMATIC);
     }
@@ -61,22 +74,25 @@ public class Slicer {
         }
     }
 
+    @SuppressWarnings("unused")
     public Grid<MultiPoint> puntual(Puntal puntal) {
         return this.puntual(puntal, Order.AUTOMATIC);
     }
 
     public Grid<MultiPoint> puntual(Puntal puntal, Order order) {
-        throw new GinsuException.Unsupported("");
+        throw new GinsuException.Unsupported();
     }
 
+    @SuppressWarnings("unused")
     public Grid<MultiLineString> lineal(Lineal lineal) {
         return this.lineal(lineal, Order.AUTOMATIC);
     }
 
     public Grid<MultiLineString> lineal(Lineal lineal, Order order) {
-        throw new GinsuException.Unsupported("");
+        throw new GinsuException.Unsupported();
     }
 
+    @SuppressWarnings("unused")
     public Grid<MultiPolygon> polygonal(Polygonal polygonal) {
         return this.polygonal(polygonal, Order.AUTOMATIC);
     }

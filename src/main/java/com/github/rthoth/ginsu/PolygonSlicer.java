@@ -49,7 +49,6 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
                 var shell = factory.createLinearRing(Ginsu.next(it));
                 var holes = Ginsu.map(it, factory::createLinearRing);
                 return factory.createPolygon(shell, holes.toArray(LinearRing[]::new));
-
             } else {
                 throw new GinsuException.IllegalArgument(Objects.toString(shape));
             }
@@ -71,28 +70,13 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
         return new Slicer(detections).multishape;
     }
 
-    private class ProtoPolygon implements Comparable<ProtoPolygon> {
+    private static class ProtoPolygon implements Comparable<ProtoPolygon> {
 
         protected final CoordinateSequence shell;
         private PVector<CoordinateSequence> holes = TreePVector.empty();
 
         public ProtoPolygon(CoordinateSequence shell) {
             this.shell = shell;
-        }
-
-        @Override
-        public int compareTo(ProtoPolygon other) {
-            var mySize = shell.size();
-            var otherSize = other.shell.size();
-
-            if (mySize != otherSize)
-                return Integer.compare(mySize, otherSize);
-            else
-                return -1;
-        }
-
-        public Shape toShape() {
-            return Shape.of(shell, holes);
         }
 
         public void add(Collection<CoordinateSequence> holes) {
@@ -104,13 +88,24 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
                 final var coordinate = hole.getCoordinate(i);
                 final var location = RayCrossingCounter.locatePointInRing(coordinate, shell);
 
-                if (location == Location.INTERIOR || location == Location.EXTERIOR) {
+                if (location == Location.INTERIOR) {
                     holes = holes.plus(hole);
                     return true;
+                } else if (location == Location.EXTERIOR) {
+                    return false;
                 }
             }
 
             return false;
+        }
+
+        @Override
+        public int compareTo(ProtoPolygon other) {
+            return shell.size() <= other.shell.size() ? -1 : 1;
+        }
+
+        public Shape toShape() {
+            return Shape.of(shell, holes);
         }
     }
 
@@ -139,7 +134,6 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
                 }
 
                 if (!inside.isEmpty()) {
-
                     if (protoPolygons.size() > 1)
                         for (final var hole : inside) {
                             var found = false;

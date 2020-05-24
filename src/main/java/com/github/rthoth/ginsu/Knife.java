@@ -22,6 +22,8 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
 
     public abstract double ordinateOf(Coordinate coordinate);
 
+    public abstract K extrude(double extrusion);
+
     public static class X extends Knife<X> {
 
         private final X upper;
@@ -46,6 +48,11 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
         @Override
         public int compareTo(X other) {
             return Ginsu.compare(value, offset, other.value);
+        }
+
+        @Override
+        public X extrude(double extrusion) {
+            return new X(value, offset, extrusion);
         }
 
         @Override
@@ -92,6 +99,11 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
                 upper = this;
                 lower = this;
             }
+        }
+
+        @Override
+        public Y extrude(double extrusion) {
+            return new Y(value, offset, extrusion);
         }
 
         @Override

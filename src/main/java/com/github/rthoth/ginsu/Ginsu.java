@@ -68,7 +68,7 @@ public class Ginsu {
         return vector;
     }
 
-    public static <T> PVector<T> mapTo(double[] array, DoubleFunction<T> mapper) {
+    public static <T> PVector<T> map(double[] array, DoubleFunction<T> mapper) {
         var vector = TreePVector.<T>empty();
         for (var element : array)
             vector = vector.plus(mapper.apply(element));

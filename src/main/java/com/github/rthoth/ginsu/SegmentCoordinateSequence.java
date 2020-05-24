@@ -5,7 +5,10 @@ import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.CoordinateSequences;
 import org.locationtech.jts.geom.Envelope;
 import org.pcollections.PVector;
+import org.pcollections.TreePVector;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.TreeMap;
 
 public class SegmentCoordinateSequence implements CoordinateSequence {
@@ -35,6 +38,10 @@ public class SegmentCoordinateSequence implements CoordinateSequence {
 
     @Override
     public Envelope expandEnvelope(Envelope env) {
+        return null;
+    }
+
+    public PVector<Segment> forward(int start, int stop) {
         return null;
     }
 
