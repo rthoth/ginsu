@@ -6,13 +6,13 @@ import org.pcollections.TreePVector;
 
 import javax.validation.constraints.NotNull;
 
-import static com.github.rthoth.ginsu.Detection.*;
+import static com.github.rthoth.ginsu.SDetection.*;
 
-public class Detector {
+public class SDetector {
 
-    private final Cell cell;
-    private final Event.Factory factory;
-    private PVector<Event> events = null;
+    private final SCell cell;
+    private final SEvent.Factory factory;
+    private PVector<SEvent> events = null;
     private Coordinate previousCoordinate;
     private int previousIndex;
     private int firstLocation;
@@ -20,11 +20,11 @@ public class Detector {
     private int currentPosition;
     private int currentIndex;
     private Coordinate currentCoordinate;
-    private Event candidate;
+    private SEvent candidate;
     private Coordinate firstCoordinate;
 
 
-    public Detector(Cell cell, Event.Factory factory) {
+    public SDetector(SCell cell, SEvent.Factory factory) {
         this.cell = cell;
         this.factory = factory;
     }
@@ -57,28 +57,28 @@ public class Detector {
             case 0:
                 if (currentLocation == INSIDE) {
                     if (previousLocation == OUTSIDE) { // OUTSIDE -> INSIDE
-                        pushIn(currentIndex, cell.computeIntersection(previousCoordinate, currentCoordinate, previousPosition));
+                        pushIn(currentIndex, cell.computeLocation(previousCoordinate, currentCoordinate, previousPosition));
                     } else if (previousLocation == BORDER) { // BORDER -> INSIDE
                         if (candidate != null) {
                             if (candidate.index != previousIndex) {
                                 pushCandidate();
-                                pushIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition));
+                                pushIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition));
                             } else {
                                 candidate = null;
                             }
                         } else {
-                            pushIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition));
+                            pushIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition));
                         }
                     }
                 } else if (currentLocation == OUTSIDE) {
-                    pushOut(previousIndex, cell.computeIntersection(previousCoordinate, currentCoordinate, currentPosition));
+                    pushOut(previousIndex, cell.computeLocation(previousCoordinate, currentCoordinate, currentPosition));
                 } else if (currentLocation == BORDER) {
-                    candidate = factory.newOut(currentIndex, cell.createIntersection(currentCoordinate, currentPosition));
+                    candidate = factory.newOut(currentIndex, cell.createLocation(currentCoordinate, currentPosition));
                 }
                 break;
             case -4: // OUTSIDE -> INSIDE -> OUTSIDE
-                events = events.plus(factory.newIn(-1, cell.computeIntersection(previousCoordinate, currentCoordinate, previousPosition)));
-                events = events.plus(factory.newOut(-1, cell.computeIntersection(previousCoordinate, currentCoordinate, currentPosition)));
+                events = events.plus(factory.newIn(-1, cell.computeLocation(previousCoordinate, currentCoordinate, previousPosition)));
+                events = events.plus(factory.newOut(-1, cell.computeLocation(previousCoordinate, currentCoordinate, currentPosition)));
                 candidate = null;
                 break;
 
@@ -95,13 +95,13 @@ public class Detector {
                             pushCandidate();
                         }
                     } else {
-                        pushIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition));
+                        pushIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition));
                     }
 
-                    pushOut(previousIndex, cell.computeIntersection(previousCoordinate, currentCoordinate, currentPosition));
+                    pushOut(previousIndex, cell.computeLocation(previousCoordinate, currentCoordinate, currentPosition));
                 } else { // OUTSIDE -> INSIDE -> BORDER
-                    pushIn(currentIndex, cell.computeIntersection(previousCoordinate, currentCoordinate, previousPosition));
-                    candidate = factory.newOut(currentIndex, cell.createIntersection(currentCoordinate, currentPosition));
+                    pushIn(currentIndex, cell.computeLocation(previousCoordinate, currentCoordinate, previousPosition));
+                    candidate = factory.newOut(currentIndex, cell.createLocation(currentCoordinate, currentPosition));
                 }
                 break;
 
@@ -109,13 +109,13 @@ public class Detector {
                 if (candidate != null) {
                     if (candidate.index != previousIndex) {
                         pushCandidate();
-                        pushIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition));
+                        pushIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition));
                     }
                 } else {
-                    events = events.plus(factory.newIn(previousIndex, cell.createIntersection(previousCoordinate, previousPosition)));
+                    events = events.plus(factory.newIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition)));
                 }
 
-                candidate = factory.newOut(currentIndex, cell.createIntersection(currentCoordinate, currentPosition));
+                candidate = factory.newOut(currentIndex, cell.createLocation(currentCoordinate, currentPosition));
                 break;
         }
     }
@@ -130,7 +130,7 @@ public class Detector {
         candidate = null;
     }
 
-    public Detection last(int index, Coordinate coordinate) {
+    public SDetection last(int index, Coordinate coordinate) {
         check(index, coordinate);
 
         if (candidate != null) {
@@ -146,16 +146,16 @@ public class Detector {
         }
 
 
-        return new Detection(events, firstCoordinate.equals2D(coordinate), firstLocation, factory);
+        return new SDetection(events, firstCoordinate.equals2D(coordinate), firstLocation, factory);
     }
 
     private int location(int position) {
         switch (position) {
-            case Cell.LOWER:
-            case Cell.UPPER:
+            case SCell.LOWER:
+            case SCell.UPPER:
                 return OUTSIDE;
 
-            case Cell.MIDDLE:
+            case SCell.MIDDLE:
                 return INSIDE;
 
             default:
@@ -168,13 +168,13 @@ public class Detector {
         candidate = null;
     }
 
-    private void pushIn(int index, @NotNull Cell.Intersection intersection) {
-        events = events.plus(factory.newIn(index, intersection));
+    private void pushIn(int index, @NotNull SCell.Location location) {
+        events = events.plus(factory.newIn(index, location));
         candidate = null;
     }
 
-    private void pushOut(int index, @NotNull Cell.Intersection intersection) {
-        events = events.plus(factory.newOut(index, intersection));
+    private void pushOut(int index, @NotNull SCell.Location location) {
+        events = events.plus(factory.newOut(index, location));
         candidate = null;
     }
 }

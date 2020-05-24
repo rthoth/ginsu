@@ -6,7 +6,10 @@ import org.pcollections.TreePVector;
 
 import java.util.Objects;
 
-public abstract class Cell {
+/**
+ * Slice Cell
+ */
+public abstract class SCell {
 
     public static final int LOWER = -2;
     public static final int LOWER_BORDER = -1;
@@ -14,8 +17,8 @@ public abstract class Cell {
     public static final int UPPER_BORDER = 1;
     public static final int UPPER = 2;
 
-    public static <K extends Knife<K>> PVector<Cell> from(PVector<K> knives) {
-        var cells = TreePVector.<Cell>empty();
+    public static <K extends Knife<K>> PVector<SCell> from(PVector<K> knives) {
+        var cells = TreePVector.<SCell>empty();
 
         if (!knives.isEmpty()) {
             final var iterator = knives.iterator();
@@ -34,18 +37,18 @@ public abstract class Cell {
         return cells;
     }
 
-    public abstract Intersection computeIntersection(Coordinate origin, Coordinate target, int position);
+    public abstract Location computeLocation(Coordinate origin, Coordinate target, int position);
 
-    public abstract Intersection createIntersection(Coordinate coordinate, int position);
+    public abstract Location createLocation(Coordinate coordinate, int position);
 
     public abstract int positionOf(Coordinate coordinate);
 
-    public static class Intersection {
+    public static class Location {
         public final double ordinate;
         public final int border;
         public final Coordinate coordinate;
 
-        public Intersection(double ordinate, int border, Coordinate coordinate) {
+        public Location(double ordinate, int border, Coordinate coordinate) {
             this.ordinate = ordinate;
             this.coordinate = coordinate;
             if (border < 0)
@@ -62,7 +65,7 @@ public abstract class Cell {
         }
     }
 
-    public static class Lower<K extends Knife<K>> extends Cell {
+    public static class Lower<K extends Knife<K>> extends SCell {
 
         private final K upper;
 
@@ -71,15 +74,15 @@ public abstract class Cell {
         }
 
         @Override
-        public Intersection computeIntersection(Coordinate origin, Coordinate target, int position) {
+        public Location computeLocation(Coordinate origin, Coordinate target, int position) {
             var knife = getKnife(position);
             var coordinate = knife.intersection(origin, target);
-            return new Intersection(knife.ordinateOf(coordinate), position, coordinate);
+            return new Location(knife.ordinateOf(coordinate), position, coordinate);
         }
 
         @Override
-        public Intersection createIntersection(Coordinate coordinate, int position) {
-            return new Intersection(getKnife(position).ordinateOf(coordinate), position, null);
+        public Location createLocation(Coordinate coordinate, int position) {
+            return new Location(getKnife(position).ordinateOf(coordinate), position, null);
         }
 
         private K getKnife(int position) {
@@ -107,7 +110,7 @@ public abstract class Cell {
         }
     }
 
-    public static class Middle<K extends Knife<K>> extends Cell {
+    public static class Middle<K extends Knife<K>> extends SCell {
 
         private final K lower;
         private final K upper;
@@ -118,15 +121,15 @@ public abstract class Cell {
         }
 
         @Override
-        public Intersection computeIntersection(Coordinate origin, Coordinate target, int position) {
+        public Location computeLocation(Coordinate origin, Coordinate target, int position) {
             var knife = getKnife(position);
             var coordinate = knife.intersection(origin, target);
-            return new Intersection(knife.ordinateOf(coordinate), position, coordinate);
+            return new Location(knife.ordinateOf(coordinate), position, coordinate);
         }
 
         @Override
-        public Intersection createIntersection(Coordinate coordinate, int position) {
-            return new Intersection(getKnife(position).ordinateOf(coordinate), position, null);
+        public Location createLocation(Coordinate coordinate, int position) {
+            return new Location(getKnife(position).ordinateOf(coordinate), position, null);
         }
 
         private K getKnife(int position) {
@@ -168,7 +171,7 @@ public abstract class Cell {
         }
     }
 
-    public static class Upper<K extends Knife<K>> extends Cell {
+    public static class Upper<K extends Knife<K>> extends SCell {
 
         private final K lower;
 
@@ -177,15 +180,15 @@ public abstract class Cell {
         }
 
         @Override
-        public Intersection computeIntersection(Coordinate origin, Coordinate target, int position) {
+        public Location computeLocation(Coordinate origin, Coordinate target, int position) {
             var knife = getKnife(position);
             var coordinate = knife.intersection(origin, target);
-            return new Intersection(knife.ordinateOf(coordinate), position, coordinate);
+            return new Location(knife.ordinateOf(coordinate), position, coordinate);
         }
 
         @Override
-        public Intersection createIntersection(Coordinate coordinate, int position) {
-            return new Intersection(getKnife(position).ordinateOf(coordinate), position, null);
+        public Location createLocation(Coordinate coordinate, int position) {
+            return new Location(getKnife(position).ordinateOf(coordinate), position, null);
         }
 
         private K getKnife(int position) {

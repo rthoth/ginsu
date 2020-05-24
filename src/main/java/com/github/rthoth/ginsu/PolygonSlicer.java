@@ -16,8 +16,8 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
         super(factory);
     }
 
-    private static int rank(Event event) {
-        var isIn = Event.isIn(event);
+    private static int rank(SEvent event) {
+        var isIn = SEvent.isIn(event);
         var in = isIn ? 4096 : 0;
         if (event.index >= 0) {
             if (isIn)
@@ -58,15 +58,15 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
     }
 
     @Override
-    public Detection.Status classify(Detection detection, Shape shape) {
+    public SDetection.Status classify(SDetection detection, Shape shape) {
         if (detection.events.isEmpty())
-            return new Detection.Ready(detection.firstLocation == Detection.INSIDE ? shape : Shape.EMPTY);
+            return new SDetection.Ready(detection.location == SDetection.INSIDE ? shape : Shape.EMPTY);
 
-        return new Detection.Unready(detection);
+        return new SDetection.Unready(detection);
     }
 
     @Override
-    public MultiShape slice(PVector<Detection> detections) {
+    public MultiShape slice(PVector<SDetection> detections) {
         return new Slicer(detections).multishape;
     }
 
@@ -111,18 +111,18 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
 
     private class Slicer {
 
-        final SortedEventSet eventSet = new SortedEventSet();
+        final SEventSet eventSet = new SEventSet();
         final MultiShape multishape;
         LinkedList<CoordinateSequence> inside = new LinkedList<>();
         TreeSet<ProtoPolygon> protoPolygons = new TreeSet<>();
-        Event origin;
+        SEvent origin;
         int direction = 0;
 
-        public Slicer(PVector<Detection> detections) {
+        public Slicer(PVector<SDetection> detections) {
             for (var detection : detections) {
                 if (!detection.events.isEmpty()) {
                     eventSet.add(detection);
-                } else if (detection.firstLocation == Detection.INSIDE) {
+                } else if (detection.location == SDetection.INSIDE) {
                     inside.add(detection.sequence);
                 }
             }
@@ -167,23 +167,23 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
             var start = origin;
 
             do {
-                var forward = Event.isIn(start);
+                var forward = SEvent.isIn(start);
                 var stop = forward ? eventSet.extractNext(start) : eventSet.extractPrevious(start);
 
                 if (start.index >= 0 && stop.index >= 0) {
-                    if (start.intersection.coordinate != null)
-                        builder.addPoint(start.intersection.coordinate);
+                    if (start.location.coordinate != null)
+                        builder.addPoint(start.location.coordinate);
 
                     if (forward)
                         builder.addForward(start.index, stop.index, start.sequence);
                     else
                         builder.addBackward(start.index, stop.index, start.sequence);
 
-                    if (stop.intersection.coordinate != null)
-                        builder.addPoint(stop.intersection.coordinate);
+                    if (stop.location.coordinate != null)
+                        builder.addPoint(stop.location.coordinate);
 
                 } else if (start.index < 0 && stop.index < 0) {
-                    builder.addLine(start.intersection.coordinate, stop.intersection.coordinate);
+                    builder.addLine(start.location.coordinate, stop.location.coordinate);
                 } else {
                     throw new GinsuException.TopologyException("Invalid event detection!");
                 }
@@ -210,7 +210,7 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
             }
         }
 
-        int updateOrigin(int ranking, int newDirection, Event... events) {
+        int updateOrigin(int ranking, int newDirection, SEvent... events) {
             for (var event : events) {
                 if (event != null) {
                     var newRanking = rank(event);

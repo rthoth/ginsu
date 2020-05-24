@@ -12,9 +12,9 @@ public abstract class GeometrySlicer<G extends Geometry> {
         this.factory = factory;
     }
 
-    public abstract Detection.Status classify(Detection detection, Shape shape);
-
-    public abstract MultiShape slice(PVector<Detection> detections);
-
     public abstract G apply(MultiShape multishape);
+
+    public abstract SDetection.Status classify(SDetection detection, Shape shape);
+
+    public abstract MultiShape slice(PVector<SDetection> detections);
 }

@@ -7,14 +7,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class SortedEventSet {
+/**
+ * Slice Event Set
+ */
+public class SEventSet {
 
-    private final TreeMap<Double, ScanLineEntry> scanLine = new TreeMap<>();
-    private final TreeMap<Double, Event> lowerBorder = new TreeMap<>();
-    private final TreeMap<Double, Event> upperBorder = new TreeMap<>();
-    private PMap<Event, EventInfo> eventToInfo = HashTreePMap.empty();
+    private final TreeMap<Double, Entry> scanLine = new TreeMap<>();
+    private final TreeMap<Double, SEvent> lowerBorder = new TreeMap<>();
+    private final TreeMap<Double, SEvent> upperBorder = new TreeMap<>();
+    private PMap<SEvent, EventInfo> eventToInfo = HashTreePMap.empty();
 
-    public void add(Detection detection) {
+    public void add(SDetection detection) {
 
         for (var index : Ginsu.zipWithIndex(detection.events)) {
             var event = index.value;
@@ -22,7 +25,7 @@ public class SortedEventSet {
 
             var entry = scanLine.get(event.ordinate());
             if (entry == null) {
-                scanLine.put(event.ordinate(), new ScanLineEntry(event));
+                scanLine.put(event.ordinate(), new Entry(event));
             } else {
                 entry.put(event);
             }
@@ -34,34 +37,33 @@ public class SortedEventSet {
         }
     }
 
-    private ScanLineEntry getEntry(Map.Entry<Double, ScanLineEntry> mapEntry) {
-        return mapEntry != null ? mapEntry.getValue() : null;
-    }
-
-    private TreeMap<Double, Event> getBorder(Event event) {
-        switch (event.border()) {
-            case Cell.LOWER_BORDER:
-                return lowerBorder;
-            case Cell.UPPER_BORDER:
-                return upperBorder;
-            default:
-                throw new GinsuException.IllegalArgument(Objects.toString(event));
+    private SEvent extract(SEvent event) {
+        getBorder(event).remove(event.ordinate());
+        var entry = scanLine.get(event.ordinate());
+        if (entry.remove(event)) {
+            scanLine.remove(entry.ordinate);
         }
+
+        return event;
     }
 
-    public ScanLineEntry lower() {
-        return getEntry(scanLine.firstEntry());
+    public SEvent extractHigher(SEvent origin) {
+        var entry = getBorder(origin).higherEntry(origin.ordinate());
+        if (entry != null)
+            return extract(entry.getValue());
+        else
+            throw new GinsuException.IllegalState("Invalid move!");
     }
 
-    public boolean nonEmpty() {
-        return !scanLine.isEmpty();
+    public SEvent extractLower(SEvent origin) {
+        var entry = getBorder(origin).lowerEntry(origin.ordinate());
+        if (entry != null)
+            return extract(entry.getValue());
+        else
+            throw new GinsuException.IllegalState("Invalid move!");
     }
 
-    public ScanLineEntry upper() {
-        return getEntry(scanLine.lastEntry());
-    }
-
-    public Event extractNext(Event origin) {
+    public SEvent extractNext(SEvent origin) {
         var info = eventToInfo.get(origin);
         var nextIndex = info.index + 1;
 
@@ -73,17 +75,7 @@ public class SortedEventSet {
             throw new GinsuException.IllegalState("No next event!");
     }
 
-    private Event extract(Event event) {
-        getBorder(event).remove(event.ordinate());
-        var entry = scanLine.get(event.ordinate());
-        if (entry.remove(event)) {
-            scanLine.remove(entry.ordinate);
-        }
-
-        return event;
-    }
-
-    public Event extractPrevious(Event origin) {
+    public SEvent extractPrevious(SEvent origin) {
         var info = eventToInfo.get(origin);
         var previousIndex = info.index - 1;
 
@@ -96,46 +88,57 @@ public class SortedEventSet {
         }
     }
 
-    public Event extractLower(Event origin) {
-        var entry = getBorder(origin).lowerEntry(origin.ordinate());
-        if (entry != null)
-            return extract(entry.getValue());
-        else
-            throw new GinsuException.IllegalState("Invalid move!");
+    private TreeMap<Double, SEvent> getBorder(SEvent event) {
+        switch (event.border()) {
+            case SCell.LOWER_BORDER:
+                return lowerBorder;
+            case SCell.UPPER_BORDER:
+                return upperBorder;
+            default:
+                throw new GinsuException.IllegalArgument(Objects.toString(event));
+        }
     }
 
-    public Event extractHigher(Event origin) {
-        var entry = getBorder(origin).higherEntry(origin.ordinate());
-        if (entry != null)
-            return extract(entry.getValue());
-        else
-            throw new GinsuException.IllegalState("Invalid move!");
+    private Entry getEntry(Map.Entry<Double, Entry> mapEntry) {
+        return mapEntry != null ? mapEntry.getValue() : null;
+    }
+
+    public Entry lower() {
+        return getEntry(scanLine.firstEntry());
+    }
+
+    public boolean nonEmpty() {
+        return !scanLine.isEmpty();
+    }
+
+    public Entry upper() {
+        return getEntry(scanLine.lastEntry());
     }
 
     private static class EventInfo {
 
         private final int index;
-        private final Detection detection;
+        private final SDetection detection;
 
-        public EventInfo(int index, Detection detection) {
+        public EventInfo(int index, SDetection detection) {
             this.index = index;
             this.detection = detection;
         }
     }
 
-    protected static class ScanLineEntry {
+    protected static class Entry {
 
         private final Double ordinate;
-        private Event lower = null;
-        private Event upper = null;
+        private SEvent lower = null;
+        private SEvent upper = null;
 
-        public ScanLineEntry(Event event) {
+        public Entry(SEvent event) {
             ordinate = event.ordinate();
             switch (event.border()) {
-                case Cell.LOWER_BORDER:
+                case SCell.LOWER_BORDER:
                     lower = event;
                     break;
-                case Cell.UPPER_BORDER:
+                case SCell.UPPER_BORDER:
                     upper = event;
                     break;
                 default:
@@ -143,23 +146,23 @@ public class SortedEventSet {
             }
         }
 
-        public Event getLower() {
+        public SEvent getLower() {
             return lower;
         }
 
-        public Event getUpper() {
+        public SEvent getUpper() {
             return upper;
         }
 
-        private void put(Event event) {
+        private void put(SEvent event) {
             switch (event.border()) {
-                case Cell.LOWER_BORDER:
+                case SCell.LOWER_BORDER:
                     if (lower == null) {
                         lower = event;
                         return;
                     }
 
-                case Cell.UPPER_BORDER:
+                case SCell.UPPER_BORDER:
                     if (upper == null) {
                         upper = event;
                         return;
@@ -173,14 +176,14 @@ public class SortedEventSet {
          * @param event
          * @return true if it's empty!
          */
-        public boolean remove(Event event) {
+        public boolean remove(SEvent event) {
             switch (event.border()) {
-                case Cell.LOWER_BORDER:
+                case SCell.LOWER_BORDER:
                     if (lower == event)
                         lower = null;
                     break;
 
-                case Cell.UPPER_BORDER:
+                case SCell.UPPER_BORDER:
                     if (upper == event)
                         upper = null;
                     break;

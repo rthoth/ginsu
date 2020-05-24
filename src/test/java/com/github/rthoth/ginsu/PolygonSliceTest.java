@@ -7,7 +7,7 @@ import java.util.Arrays;
 
 import static com.google.common.truth.Truth.assertThat;
 
-public class PolygonSliceTest extends AbstractTest implements DetectionInterface, UtilInterface {
+public class PolygonSliceTest extends AbstractTest implements SDetectionUtil, Util {
 
     @Test
     public void t01() {

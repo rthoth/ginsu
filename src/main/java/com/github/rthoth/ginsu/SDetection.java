@@ -4,26 +4,26 @@ import org.locationtech.jts.geom.CoordinateSequence;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-public class Detection {
+public class SDetection {
 
     public static final int BORDER = 8;
     public static final int INSIDE = 16;
     public static final int OUTSIDE = 32;
-    public final int firstLocation;
-    public final PVector<Event> events;
+    public final int location;
+    public final PVector<SEvent> events;
     public final CoordinateSequence sequence;
     public final boolean isRing;
 
-    public Detection(PVector<Event> events, boolean isRing, int firstLocation, Event.Factory factory) {
+    public SDetection(PVector<SEvent> events, boolean isRing, int location, SEvent.Factory factory) {
         this.events = events;
         this.sequence = factory.getCoordinateSequence();
-        this.firstLocation = firstLocation;
+        this.location = location;
         this.isRing = isRing;
     }
 
     public static abstract class Status {
 
-        public abstract void add(Detection detection);
+        public abstract void add(SDetection detection);
     }
 
     public static class Ready extends Status {
@@ -35,25 +35,25 @@ public class Detection {
         }
 
         @Override
-        public void add(Detection detection) {
+        public void add(SDetection detection) {
             throw new UnsupportedOperationException();
         }
     }
 
     public static class Unready extends Status {
 
-        private PVector<Detection> detections;
+        private PVector<SDetection> detections;
 
-        public Unready(Detection detection) {
+        public Unready(SDetection detection) {
             this.detections = TreePVector.singleton(detection);
         }
 
         @Override
-        public void add(Detection detection) {
+        public void add(SDetection detection) {
             detections = detections.plus(detection);
         }
 
-        public PVector<Detection> getDetections() {
+        public PVector<SDetection> getDetections() {
             return detections;
         }
     }

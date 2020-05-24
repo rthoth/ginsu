@@ -58,32 +58,6 @@ public class Slicer {
     }
 
     @SuppressWarnings("unused")
-    public Grid<? extends Geometry> slice(Geometry geometry) {
-        return slice(geometry, Order.AUTOMATIC);
-    }
-
-    public Grid<? extends Geometry> slice(Geometry geometry, Order order) {
-        if (geometry instanceof Polygonal) {
-            return polygonal((Polygonal) geometry, order);
-        } else if (geometry instanceof Lineal) {
-            return lineal((Lineal) geometry, order);
-        } else if (geometry instanceof Puntal) {
-            return puntual((Puntal) geometry, order);
-        } else {
-            throw new GinsuException.Unsupported(Objects.toString(geometry, "null"));
-        }
-    }
-
-    @SuppressWarnings("unused")
-    public Grid<MultiPoint> puntual(Puntal puntal) {
-        return this.puntual(puntal, Order.AUTOMATIC);
-    }
-
-    public Grid<MultiPoint> puntual(Puntal puntal, Order order) {
-        throw new GinsuException.Unsupported();
-    }
-
-    @SuppressWarnings("unused")
     public Grid<MultiLineString> lineal(Lineal lineal) {
         return this.lineal(lineal, Order.AUTOMATIC);
     }
@@ -98,6 +72,32 @@ public class Slicer {
     }
 
     public Grid<MultiPolygon> polygonal(Polygonal polygonal, Order order) {
-        return new SliceGrid<>(x, y, MultiShape.of(polygonal), new PolygonSlicer(((Geometry) polygonal).getFactory()), order).getResult();
+        return new SliceGrid<>(x, y, new PolygonSlicer(((Geometry) polygonal).getFactory())).apply(MultiShape.of(polygonal), order);
+    }
+
+    @SuppressWarnings("unused")
+    public Grid<MultiPoint> puntual(Puntal puntal) {
+        return this.puntual(puntal, Order.AUTOMATIC);
+    }
+
+    public Grid<MultiPoint> puntual(Puntal puntal, Order order) {
+        throw new GinsuException.Unsupported();
+    }
+
+    @SuppressWarnings("unused")
+    public Grid<? extends Geometry> slice(Geometry geometry) {
+        return slice(geometry, Order.AUTOMATIC);
+    }
+
+    public Grid<? extends Geometry> slice(Geometry geometry, Order order) {
+        if (geometry instanceof Polygonal) {
+            return polygonal((Polygonal) geometry, order);
+        } else if (geometry instanceof Lineal) {
+            return lineal((Lineal) geometry, order);
+        } else if (geometry instanceof Puntal) {
+            return puntual((Puntal) geometry, order);
+        } else {
+            throw new GinsuException.Unsupported(Objects.toString(geometry, "null"));
+        }
     }
 }

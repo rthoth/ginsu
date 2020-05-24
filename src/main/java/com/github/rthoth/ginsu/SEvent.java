@@ -4,7 +4,10 @@ import org.locationtech.jts.geom.CoordinateSequence;
 
 import javax.validation.constraints.NotNull;
 
-public final class Event {
+/**
+ * Slice Event
+ */
+public final class SEvent {
 
     private static final int IN = 1;
     private static final int OUT = 2;
@@ -12,39 +15,39 @@ public final class Event {
     public final int index;
     public final CoordinateSequence sequence;
     public final int kind;
-    public final Cell.Intersection intersection;
+    public final SCell.Location location;
 
-    private Event(CoordinateSequence sequence, int index, int kind, Cell.Intersection intersection) {
+    private SEvent(CoordinateSequence sequence, int index, int kind, SCell.Location location) {
         this.sequence = sequence;
         this.index = index;
         this.kind = kind;
-        this.intersection = intersection;
+        this.location = location;
     }
 
-    public static boolean isIn(Event event) {
+    public static boolean isIn(SEvent event) {
         return event != null && event.kind == IN;
     }
 
     @SuppressWarnings("unused")
-    public static boolean isOut(Event event) {
+    public static boolean isOut(SEvent event) {
         return event != null && event.kind == OUT;
     }
 
     public int border() {
-        return intersection.border;
+        return location.border;
     }
 
     public Double ordinate() {
-        return intersection.ordinate;
-    }
-
-    @Override
-    public String toString() {
-        return String.format("%s(%d, %s, %s)", kind == IN ? "In" : "Out", index, intersection, intersection.coordinate != null ? "(" + intersection.coordinate.getX() + ", " + intersection.coordinate.getY() + ")" : "null");
+        return location.ordinate;
     }
 
     public int sequenceSize() {
         return sequence.size();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s(%d, %s, %s)", kind == IN ? "In" : "Out", index, location, location.coordinate != null ? "(" + location.coordinate.getX() + ", " + location.coordinate.getY() + ")" : "null");
     }
 
     public static class Factory {
@@ -60,12 +63,12 @@ public final class Event {
         }
 
 
-        public Event newIn(int index, @NotNull Cell.Intersection intersection) {
-            return new Event(sequence, index, IN, intersection);
+        public SEvent newIn(int index, @NotNull SCell.Location location) {
+            return new SEvent(sequence, index, IN, location);
         }
 
-        public Event newOut(int index, @NotNull Cell.Intersection intersection) {
-            return new Event(sequence, index, OUT, intersection);
+        public SEvent newOut(int index, @NotNull SCell.Location location) {
+            return new SEvent(sequence, index, OUT, location);
         }
     }
 }
