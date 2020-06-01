@@ -2,12 +2,13 @@ package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.geom.Geometry;
 import org.pcollections.PVector;
+import org.pcollections.TreePVector;
 
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.function.Function;
 
-public abstract class Grid<T extends Geometry> {
+public abstract class Grid<T> {
 
     protected final int width;
     protected final int height;
@@ -27,6 +28,16 @@ public abstract class Grid<T extends Geometry> {
         }
     }
 
+    private Grid(int width, int height) {
+        this.width = width;
+        this.height = height;
+        data = TreePVector.empty();
+    }
+
+    protected T _get(int x, int y) {
+        return data.get(mapToIndex(x, y));
+    }
+
     public Entry<Optional<T>> get(int x, int y) {
         if (x >= 0 && x < width && y >= 0 && y < height) {
             return new Entry<>(x, y, Optional.ofNullable(_get(x, y)));
@@ -34,12 +45,6 @@ public abstract class Grid<T extends Geometry> {
             throw new GinsuException.IllegalArgument(x + ", " + y);
         }
     }
-
-    private T _get(int x, int y) {
-        return data.get(map(x, y));
-    }
-
-    protected abstract int map(int x, int y);
 
     @SuppressWarnings("unused")
     public Iterable<Entry<T>> iterable() {
@@ -70,6 +75,12 @@ public abstract class Grid<T extends Geometry> {
         };
     }
 
+    protected abstract int mapToIndex(int x, int y);
+
+    public <M> Grid<M> view(Function<T, M> mapper) {
+        return new View<>(this, mapper);
+    }
+
     @SuppressWarnings("unused")
     public static class Entry<T> {
 
@@ -84,17 +95,39 @@ public abstract class Grid<T extends Geometry> {
             this.value = value;
         }
 
-        public <M> Entry<M> map(Function<T, M> mapper) {
-            return new Entry<>(x, y, mapper.apply(value));
-        }
-
         public <M> Entry<M> copy(M value) {
             return new Entry<>(x, y, value);
+        }
+
+        public <M> Entry<M> map(Function<T, M> mapper) {
+            return new Entry<>(x, y, mapper.apply(value));
         }
 
         @Override
         public String toString() {
             return "Entry(" + x + ", " + y + ", " + value + ")";
+        }
+    }
+
+    private static class View<T, M> extends Grid<M> {
+
+        private final Grid<T> grid;
+        private final Function<T, M> mapper;
+
+        private View(Grid<T> grid, Function<T, M> mapper) {
+            super(grid.width, grid.height);
+            this.mapper = mapper;
+            this.grid = grid;
+        }
+
+        @Override
+        protected M _get(int x, int y) {
+            return mapper.apply(grid._get(x, y));
+        }
+
+        @Override
+        protected int mapToIndex(int x, int y) {
+            return grid.mapToIndex(x, y);
         }
     }
 
@@ -105,7 +138,7 @@ public abstract class Grid<T extends Geometry> {
         }
 
         @Override
-        protected int map(int x, int y) {
+        protected int mapToIndex(int x, int y) {
             return x * height + y;
         }
     }
@@ -117,7 +150,7 @@ public abstract class Grid<T extends Geometry> {
         }
 
         @Override
-        protected int map(int x, int y) {
+        protected int mapToIndex(int x, int y) {
             return y * width + x;
         }
     }

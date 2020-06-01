@@ -12,17 +12,17 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
         this.offset = offset;
     }
 
+    public abstract K extrude(double extrusion);
+
     public abstract K getLower();
 
     public abstract K getUpper();
 
     public abstract Coordinate intersection(Coordinate origin, Coordinate target);
 
-    public abstract int positionOf(Coordinate coordinate);
-
     public abstract double ordinateOf(Coordinate coordinate);
 
-    public abstract K extrude(double extrusion);
+    public abstract int positionOf(Coordinate coordinate);
 
     public static class X extends Knife<X> {
 
@@ -38,11 +38,6 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
                 upper = this;
                 lower = this;
             }
-        }
-
-        @Override
-        public double ordinateOf(Coordinate coordinate) {
-            return coordinate.getY();
         }
 
         @Override
@@ -76,6 +71,11 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
         }
 
         @Override
+        public double ordinateOf(Coordinate coordinate) {
+            return coordinate.getY();
+        }
+
+        @Override
         public int positionOf(Coordinate coordinate) {
             return Ginsu.compare(coordinate.getX(), offset, value);
         }
@@ -102,18 +102,13 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
         }
 
         @Override
-        public Y extrude(double extrusion) {
-            return new Y(value, offset, extrusion);
-        }
-
-        @Override
-        public double ordinateOf(Coordinate coordinate) {
-            return coordinate.getX();
-        }
-
-        @Override
         public int compareTo(Y other) {
             return Ginsu.compare(value, offset, other.value);
+        }
+
+        @Override
+        public Y extrude(double extrusion) {
+            return new Y(value, offset, extrusion);
         }
 
         @Override
@@ -134,6 +129,11 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
             final var xt = target.getX();
 
             return new Coordinate(((xt - xo) * (value - yo)) / (yt - yo) + xo, value);
+        }
+
+        @Override
+        public double ordinateOf(Coordinate coordinate) {
+            return coordinate.getX();
         }
 
         @Override

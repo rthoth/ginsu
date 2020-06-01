@@ -17,7 +17,7 @@ public class SEventSet {
     private final TreeMap<Double, SEvent> upperBorder = new TreeMap<>();
     private PMap<SEvent, EventInfo> eventToInfo = HashTreePMap.empty();
 
-    public void add(SDetection detection) {
+    public void add(SShape.Detection detection) {
 
         for (var index : Ginsu.zipWithIndex(detection.events)) {
             var event = index.value;
@@ -90,9 +90,9 @@ public class SEventSet {
 
     private TreeMap<Double, SEvent> getBorder(SEvent event) {
         switch (event.border()) {
-            case SCell.LOWER_BORDER:
+            case Slice.LOWER_BORDER:
                 return lowerBorder;
-            case SCell.UPPER_BORDER:
+            case Slice.UPPER_BORDER:
                 return upperBorder;
             default:
                 throw new GinsuException.IllegalArgument(Objects.toString(event));
@@ -115,17 +115,6 @@ public class SEventSet {
         return getEntry(scanLine.lastEntry());
     }
 
-    private static class EventInfo {
-
-        private final int index;
-        private final SDetection detection;
-
-        public EventInfo(int index, SDetection detection) {
-            this.index = index;
-            this.detection = detection;
-        }
-    }
-
     protected static class Entry {
 
         private final Double ordinate;
@@ -135,10 +124,10 @@ public class SEventSet {
         public Entry(SEvent event) {
             ordinate = event.ordinate();
             switch (event.border()) {
-                case SCell.LOWER_BORDER:
+                case Slice.LOWER_BORDER:
                     lower = event;
                     break;
-                case SCell.UPPER_BORDER:
+                case Slice.UPPER_BORDER:
                     upper = event;
                     break;
                 default:
@@ -156,13 +145,13 @@ public class SEventSet {
 
         private void put(SEvent event) {
             switch (event.border()) {
-                case SCell.LOWER_BORDER:
+                case Slice.LOWER_BORDER:
                     if (lower == null) {
                         lower = event;
                         return;
                     }
 
-                case SCell.UPPER_BORDER:
+                case Slice.UPPER_BORDER:
                     if (upper == null) {
                         upper = event;
                         return;
@@ -178,18 +167,29 @@ public class SEventSet {
          */
         public boolean remove(SEvent event) {
             switch (event.border()) {
-                case SCell.LOWER_BORDER:
+                case Slice.LOWER_BORDER:
                     if (lower == event)
                         lower = null;
                     break;
 
-                case SCell.UPPER_BORDER:
+                case Slice.UPPER_BORDER:
                     if (upper == event)
                         upper = null;
                     break;
             }
 
             return lower == null && upper == null;
+        }
+    }
+
+    private static class EventInfo {
+
+        private final int index;
+        private final SShape.Detection detection;
+
+        public EventInfo(int index, SShape.Detection detection) {
+            this.index = index;
+            this.detection = detection;
         }
     }
 }

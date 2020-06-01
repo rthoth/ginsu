@@ -36,8 +36,7 @@ public class Slicer {
     private static <K extends Knife<K>> void isValid(PVector<K> vector) {
         if (!vector.isEmpty()) {
             final var iterator = vector.iterator();
-            iterator.hasNext();
-            var current = iterator.next();
+            var current = Ginsu.next(iterator);
 
             while (iterator.hasNext()) {
                 var next = iterator.next();
@@ -64,6 +63,10 @@ public class Slicer {
 
     public Grid<MultiLineString> lineal(Lineal lineal, Order order) {
         throw new GinsuException.Unsupported();
+    }
+
+    public Merger merger() {
+        return new Merger(x, y, offset);
     }
 
     @SuppressWarnings("unused")

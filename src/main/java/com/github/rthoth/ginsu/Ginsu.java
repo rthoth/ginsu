@@ -19,10 +19,6 @@ public class Ginsu {
 
     }
 
-    public static int compare(double reference, double offset, double value) {
-        return Math.abs(reference - value) > offset ? Double.compare(reference, value) : 0;
-    }
-
     public static <I, M> PVector<M> collect(Iterable<I> iterable, Function<I, Optional<M>> predicate) {
         var filtered = TreePVector.<M>empty();
         for (var element : iterable) {
@@ -32,6 +28,10 @@ public class Ginsu {
         }
 
         return filtered;
+    }
+
+    public static int compare(double reference, double offset, double value) {
+        return Math.abs(reference - value) > offset ? Double.compare(reference, value) : 0;
     }
 
     public static <M extends Mergeable<M>, V extends PVector<M>> PVector<M> flatten(PVector<V> vector) {

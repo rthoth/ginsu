@@ -1,9 +1,6 @@
 package com.github.rthoth.ginsu;
 
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.MultiPolygon;
-import org.locationtech.jts.geom.Polygon;
-import org.locationtech.jts.geom.Polygonal;
+import org.locationtech.jts.geom.*;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
@@ -55,7 +52,10 @@ public abstract class MultiShape implements Iterable<Shape>, Mergeable<MultiShap
 
     public abstract boolean nonEmpty();
 
+    public abstract MultiPolygon toMultiPolygon(GeometryFactory factory);
+
     private static class Empty extends MultiShape {
+
         @Override
         public Geometry getSource() {
             return null;
@@ -74,6 +74,11 @@ public abstract class MultiShape implements Iterable<Shape>, Mergeable<MultiShap
         @Override
         public MultiShape plus(MultiShape other) {
             return other;
+        }
+
+        @Override
+        public MultiPolygon toMultiPolygon(GeometryFactory factory) {
+            return factory.createMultiPolygon();
         }
     }
 
@@ -105,6 +110,14 @@ public abstract class MultiShape implements Iterable<Shape>, Mergeable<MultiShap
         @Override
         public MultiShape plus(MultiShape other) {
             return other instanceof NotEmpty ? new NotEmpty(shapes.plusAll(((NotEmpty) other).shapes), null) : this;
+        }
+
+        @Override
+        public MultiPolygon toMultiPolygon(GeometryFactory factory) {
+            if (!(source instanceof MultiPolygon))
+                return factory.createMultiPolygon(Ginsu.map(shapes, shape -> shape.toPolygon(factory)).toArray(Polygon[]::new));
+            else
+                return (MultiPolygon) source;
         }
     }
 }

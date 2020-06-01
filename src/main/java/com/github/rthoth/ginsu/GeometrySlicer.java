@@ -14,7 +14,7 @@ public abstract class GeometrySlicer<G extends Geometry> {
 
     public abstract G apply(MultiShape multishape);
 
-    public abstract SDetection.Status classify(SDetection detection, Shape shape);
+    public abstract SShape classify(SShape.Detection detection, Shape shape);
 
-    public abstract MultiShape slice(PVector<SDetection> detections);
+    public abstract MultiShape slice(PVector<SShape.Detection> detections);
 }

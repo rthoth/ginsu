@@ -67,4 +67,14 @@ public class SDetectionTest extends AbstractTest implements SDetectionUtil {
                         "In(7, L[1.0], (1.0, 1.0))"
                 );
     }
+
+    @Test
+    public void t06() {
+        var detection = detect(middle(x(-6), x(-1)), parseSequence("(-5 6, -6 5, 4 -5, 5 -4, -5 6)"));
+        assertThat(Ginsu.map(detection.events, SEvent::toString))
+                .containsExactly(
+                        "Out(1, U[0.0], (-1.0, 0.0))",
+                        "In(4, U[2.0], (-1.0, 2.0))"
+                );
+    }
 }

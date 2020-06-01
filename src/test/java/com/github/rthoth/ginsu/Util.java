@@ -2,16 +2,16 @@ package com.github.rthoth.ginsu;
 
 public interface Util {
 
-    default <K extends Knife<K>> SCell.Lower<K> lower(K upper) {
-        return new SCell.Lower<>(upper);
+    default <K extends Knife<K>> Slice.Lower<K> lower(K upper) {
+        return new Slice.Lower<>(upper);
     }
 
-    default <K extends Knife<K>> SCell.Middle<K> middle(K lower, K upper) {
-        return new SCell.Middle<>(lower, upper);
+    default <K extends Knife<K>> Slice.Middle<K> middle(K lower, K upper) {
+        return new Slice.Middle<>(lower, upper);
     }
 
-    default <K extends Knife<K>> SCell.Upper<K> upper(K lower) {
-        return new SCell.Upper<>(lower);
+    default <K extends Knife<K>> Slice.Upper<K> upper(K lower) {
+        return new Slice.Upper<>(lower);
     }
 
     default Knife.X x(double value) {

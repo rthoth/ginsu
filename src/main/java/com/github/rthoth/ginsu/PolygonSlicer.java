@@ -1,11 +1,16 @@
 package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.algorithm.RayCrossingCounter;
-import org.locationtech.jts.geom.*;
+import org.locationtech.jts.geom.CoordinateSequence;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Location;
+import org.locationtech.jts.geom.MultiPolygon;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.TreeSet;
 
 public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
 
@@ -31,42 +36,19 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
 
     @Override
     public MultiPolygon apply(MultiShape multishape) {
-        if (!(multishape.getSource() instanceof MultiPolygon)) {
-            if (multishape.nonEmpty()) {
-                return factory.createMultiPolygon(Ginsu.map(multishape, this::apply).toArray(Polygon[]::new));
-            } else {
-                return factory.createMultiPolygon();
-            }
-        } else {
-            return (MultiPolygon) multishape.getSource();
-        }
-    }
-
-    public Polygon apply(Shape shape) {
-        if (!(shape.getSource() instanceof Polygon)) {
-            if (shape.nonEmpty()) {
-                var it = shape.iterator();
-                var shell = factory.createLinearRing(Ginsu.next(it));
-                var holes = Ginsu.map(it, factory::createLinearRing);
-                return factory.createPolygon(shell, holes.toArray(LinearRing[]::new));
-            } else {
-                throw new GinsuException.IllegalArgument(Objects.toString(shape));
-            }
-        } else {
-            return (Polygon) shape.getSource();
-        }
+        return multishape.toMultiPolygon(factory);
     }
 
     @Override
-    public SDetection.Status classify(SDetection detection, Shape shape) {
+    public SShape classify(SShape.Detection detection, Shape shape) {
         if (detection.events.isEmpty())
-            return new SDetection.Ready(detection.location == SDetection.INSIDE ? shape : Shape.EMPTY);
+            return new SShape.Done(detection.location == SShape.Detection.INSIDE ? shape : Shape.EMPTY);
 
-        return new SDetection.Unready(detection);
+        return new SShape.Ongoing(detection);
     }
 
     @Override
-    public MultiShape slice(PVector<SDetection> detections) {
+    public MultiShape slice(PVector<SShape.Detection> detections) {
         return new Slicer(detections).multishape;
     }
 
@@ -109,7 +91,7 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
         }
     }
 
-    private class Slicer {
+    private static class Slicer {
 
         final SEventSet eventSet = new SEventSet();
         final MultiShape multishape;
@@ -118,11 +100,11 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
         SEvent origin;
         int direction = 0;
 
-        public Slicer(PVector<SDetection> detections) {
+        public Slicer(PVector<SShape.Detection> detections) {
             for (var detection : detections) {
                 if (!detection.events.isEmpty()) {
                     eventSet.add(detection);
-                } else if (detection.location == SDetection.INSIDE) {
+                } else if (detection.location == SShape.Detection.INSIDE) {
                     inside.add(detection.sequence);
                 }
             }

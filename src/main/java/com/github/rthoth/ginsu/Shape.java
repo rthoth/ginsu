@@ -1,8 +1,6 @@
 package com.github.rthoth.ginsu;
 
-import org.locationtech.jts.geom.CoordinateSequence;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.*;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
@@ -48,7 +46,10 @@ public abstract class Shape implements Iterable<CoordinateSequence> {
 
     public abstract boolean nonEmpty();
 
+    public abstract Polygon toPolygon(GeometryFactory factory);
+
     private static class Empty extends Shape {
+
         @Override
         public Geometry getSource() {
             return null;
@@ -62,6 +63,11 @@ public abstract class Shape implements Iterable<CoordinateSequence> {
         @Override
         public boolean nonEmpty() {
             return false;
+        }
+
+        @Override
+        public Polygon toPolygon(GeometryFactory factory) {
+            return factory.createPolygon();
         }
     }
 
@@ -88,6 +94,18 @@ public abstract class Shape implements Iterable<CoordinateSequence> {
         @Override
         public boolean nonEmpty() {
             return true;
+        }
+
+        @Override
+        public Polygon toPolygon(GeometryFactory factory) {
+            if (!(source instanceof Polygon)) {
+                var it = sequences.iterator();
+                var shell = factory.createLinearRing(Ginsu.next(it));
+                var holes = Ginsu.map(it, factory::createLinearRing);
+                return factory.createPolygon(shell, holes.toArray(LinearRing[]::new));
+            } else {
+                return (Polygon) source;
+            }
         }
     }
 }

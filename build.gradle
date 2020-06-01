@@ -5,8 +5,13 @@ plugins {
 sourceCompatibility = JavaVersion.VERSION_11
 targetCompatibility = JavaVersion.VERSION_11
 
+
 repositories {
     jcenter()
+}
+
+compileJava {
+    options.compilerArgs.addAll("-Xlint:deprecation", "-Xlint:unchecked")
 }
 
 dependencies {

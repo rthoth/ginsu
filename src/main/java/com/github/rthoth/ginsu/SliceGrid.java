@@ -9,13 +9,13 @@ import java.util.Optional;
 
 public class SliceGrid<T extends Geometry> {
 
-    protected final PVector<SCell> xCells;
-    protected final PVector<SCell> yCells;
+    protected final PVector<Slice> xSlices;
+    protected final PVector<Slice> ySlices;
     protected final GeometrySlicer<T> slicer;
 
     public SliceGrid(PVector<Knife.X> x, PVector<Knife.Y> y, GeometrySlicer<T> slicer) {
-        xCells = SCell.from(x);
-        yCells = SCell.from(y);
+        xSlices = Slice.from(x);
+        ySlices = Slice.from(y);
         this.slicer = slicer;
     }
 
@@ -25,14 +25,14 @@ public class SliceGrid<T extends Geometry> {
     }
 
     public Grid<T> apply(MultiShape multishape, Order order) {
-        if (order == Order.XY || (order == Order.AUTOMATIC && xCells.size() >= yCells.size())) {
+        if (order == Order.XY || (order == Order.AUTOMATIC && xSlices.size() >= ySlices.size())) {
             return xy(multishape);
         } else {
             return yx(multishape);
         }
     }
 
-    private PVector<SDetection> detect(PVector<SCell> cells, CoordinateSequence sequence) {
+    private PVector<SShape.Detection> detect(PVector<Slice> cells, CoordinateSequence sequence) {
         final var factory = new SEvent.Factory(sequence);
         final var detectors = Ginsu.map(cells, cell -> new SDetector(cell, factory));
 
@@ -51,7 +51,7 @@ public class SliceGrid<T extends Geometry> {
         }
 
         final var lastCoordinate = sequence.getCoordinate(lastIndex);
-        var detections = TreePVector.<SDetection>empty();
+        var detections = TreePVector.<SShape.Detection>empty();
         for (var detector : detectors) {
             detections = detections.plus(detector.last(lastIndex, lastCoordinate));
         }
@@ -59,39 +59,39 @@ public class SliceGrid<T extends Geometry> {
         return detections;
     }
 
-    private PVector<MultiShape> slice(PVector<SCell> cells, Shape shape) {
+    private PVector<MultiShape> slice(PVector<Slice> slices, Shape shape) {
         final var iterator = shape.iterator();
         var current = Ginsu.next(iterator);
 
-        var classified = Ginsu.map(detect(cells, current), detection -> slicer.classify(detection, shape));
-        var unreadyVector = Ginsu.collect(Ginsu.zipWithIndex(classified), entry ->
-                entry.value instanceof SDetection.Unready ?
-                        Optional.of(entry.copy((SDetection.Unready) entry.value)) : Optional.empty());
+        var classified = Ginsu.map(detect(slices, current), detection -> slicer.classify(detection, shape));
+        var ongoing = Ginsu.collect(Ginsu.zipWithIndex(classified), entry ->
+                entry.value instanceof SShape.Ongoing ?
+                        Optional.of(entry.copy((SShape.Ongoing) entry.value)) : Optional.empty());
 
-        if (!unreadyVector.isEmpty()) {
-            final var unreadyCells = Ginsu.map(unreadyVector, entry -> cells.get(entry.index));
+        if (!ongoing.isEmpty()) {
+            final var ongoingSlices = Ginsu.map(ongoing, entry -> slices.get(entry.index));
             while (iterator.hasNext()) {
-                var sequence = iterator.next();
-                var detections = detect(unreadyCells, sequence);
+                var detections = detect(ongoingSlices, iterator.next());
+
                 for (var index = 0; index < detections.size(); index++) {
-                    unreadyVector.get(index).value.add(detections.get(index));
+                    ongoing.get(index).value.add(detections.get(index));
                 }
             }
         }
 
         // TODO: Parallel?
-        var slices = TreePVector.<MultiShape>empty();
-        for (var status : classified) {
-            if (status instanceof SDetection.Unready) {
-                slices = slices.plus(slicer.slice(((SDetection.Unready) status).getDetections()));
-            } else if (status instanceof SDetection.Ready)
-                slices = slices.plus(MultiShape.of(((SDetection.Ready) status).shape));
+        var multishapes = TreePVector.<MultiShape>empty();
+        for (var sshape : classified) {
+            if (sshape instanceof SShape.Ongoing) {
+                multishapes = multishapes.plus(slicer.slice(((SShape.Ongoing) sshape).getDetections()));
+            } else if (sshape instanceof SShape.Done)
+                multishapes = multishapes.plus(MultiShape.of(((SShape.Done) sshape).shape));
         }
 
-        return slices;
+        return multishapes;
     }
 
-    private PVector<T> slice(PVector<SCell> _1, PVector<SCell> _2, MultiShape multiShape) {
+    private PVector<T> slice(PVector<Slice> _1, PVector<Slice> _2, MultiShape multiShape) {
         var data = TreePVector.<T>empty();
         if (!_1.isEmpty() && !_2.isEmpty()) {
             for (var _1Cell : slice(_1, multiShape)) {
@@ -114,16 +114,16 @@ public class SliceGrid<T extends Geometry> {
         return data;
     }
 
-    private PVector<MultiShape> slice(PVector<SCell> cells, MultiShape multishape) {
-        if (!cells.isEmpty()) {
+    private PVector<MultiShape> slice(PVector<Slice> slices, MultiShape multishape) {
+        if (!slices.isEmpty()) {
             if (multishape.nonEmpty()) {
-                var slices = TreePVector.<PVector<MultiShape>>empty();
+                var multishapes = TreePVector.<PVector<MultiShape>>empty();
                 for (var shape : multishape)
-                    slices = slices.plus(slice(cells, shape));
+                    multishapes = multishapes.plus(slice(slices, shape));
 
-                return Ginsu.flatten(slices);
+                return Ginsu.flatten(multishapes);
             } else {
-                return Ginsu.map(cells, cell -> MultiShape.EMPTY);
+                return Ginsu.map(slices, cell -> MultiShape.EMPTY);
             }
         } else {
             // TODO: Check!
@@ -132,10 +132,10 @@ public class SliceGrid<T extends Geometry> {
     }
 
     private Grid<T> xy(MultiShape multishape) {
-        return new Grid.XY<>(xCells.size(), yCells.size(), slice(xCells, yCells, multishape));
+        return new Grid.XY<>(xSlices.size(), ySlices.size(), slice(xSlices, ySlices, multishape));
     }
 
     private Grid<T> yx(MultiShape multishape) {
-        return new Grid.YX<>(xCells.size(), yCells.size(), slice(yCells, xCells, multishape));
+        return new Grid.YX<>(xSlices.size(), ySlices.size(), slice(ySlices, xSlices, multishape));
     }
 }

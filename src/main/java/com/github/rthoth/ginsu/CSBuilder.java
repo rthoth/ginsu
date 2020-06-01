@@ -25,6 +25,10 @@ public class CSBuilder {
         segments = segments.plus(new Segment.Point(point));
     }
 
+    public CoordinateSequence build() {
+        return new SegmentCoordinateSequence(segments);
+    }
+
     public SegmentCoordinateSequence close() {
         if (!segments.isEmpty()) {
             var first = segments.get(0);
@@ -46,9 +50,5 @@ public class CSBuilder {
         } else {
             throw new GinsuException.IllegalState("It is empty!");
         }
-    }
-
-    public CoordinateSequence build() {
-        return new SegmentCoordinateSequence(segments);
     }
 }

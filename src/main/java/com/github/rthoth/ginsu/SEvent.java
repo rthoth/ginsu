@@ -15,9 +15,9 @@ public final class SEvent {
     public final int index;
     public final CoordinateSequence sequence;
     public final int kind;
-    public final SCell.Location location;
+    public final Slice.Location location;
 
-    private SEvent(CoordinateSequence sequence, int index, int kind, SCell.Location location) {
+    private SEvent(CoordinateSequence sequence, int index, int kind, Slice.Location location) {
         this.sequence = sequence;
         this.index = index;
         this.kind = kind;
@@ -63,11 +63,11 @@ public final class SEvent {
         }
 
 
-        public SEvent newIn(int index, @NotNull SCell.Location location) {
+        public SEvent newIn(int index, @NotNull Slice.Location location) {
             return new SEvent(sequence, index, IN, location);
         }
 
-        public SEvent newOut(int index, @NotNull SCell.Location location) {
+        public SEvent newOut(int index, @NotNull Slice.Location location) {
             return new SEvent(sequence, index, OUT, location);
         }
     }

@@ -6,11 +6,11 @@ import org.pcollections.TreePVector;
 
 import javax.validation.constraints.NotNull;
 
-import static com.github.rthoth.ginsu.SDetection.*;
+import static com.github.rthoth.ginsu.SShape.Detection.*;
 
 public class SDetector {
 
-    private final SCell cell;
+    private final Slice slice;
     private final SEvent.Factory factory;
     private PVector<SEvent> events = null;
     private Coordinate previousCoordinate;
@@ -24,13 +24,13 @@ public class SDetector {
     private Coordinate firstCoordinate;
 
 
-    public SDetector(SCell cell, SEvent.Factory factory) {
-        this.cell = cell;
+    public SDetector(Slice slice, SEvent.Factory factory) {
+        this.slice = slice;
         this.factory = factory;
     }
 
     public void check(int index, Coordinate coordinate) {
-        currentPosition = cell.positionOf(coordinate);
+        currentPosition = slice.positionOf(coordinate);
         currentCoordinate = coordinate;
         currentIndex = index;
 
@@ -39,9 +39,7 @@ public class SDetector {
             if (firstLocation == BORDER && location(currentPosition) != BORDER)
                 firstLocation = location(currentPosition);
 
-            if (currentPosition * previousPosition != 4)
-                detect();
-
+            detect();
             previousPosition = currentPosition;
         }
 
@@ -51,72 +49,81 @@ public class SDetector {
 
     private void detect() {
         int currentLocation = location(currentPosition);
-        int previousLocation = location(previousPosition);
 
         switch (previousPosition * currentPosition) {
-            case 0:
+            case -3:
+            case 3:
                 if (currentLocation == INSIDE) {
-                    if (previousLocation == OUTSIDE) { // OUTSIDE -> INSIDE
-                        pushIn(currentIndex, cell.computeLocation(previousCoordinate, currentCoordinate, previousPosition));
-                    } else if (previousLocation == BORDER) { // BORDER -> INSIDE
-                        if (candidate != null) {
-                            if (candidate.index != previousIndex) {
-                                pushCandidate();
-                                pushIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition));
-                            } else {
-                                candidate = null;
-                            }
-                        } else {
-                            pushIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition));
-                        }
-                    }
-                } else if (currentLocation == OUTSIDE) {
-                    pushOut(previousIndex, cell.computeLocation(previousCoordinate, currentCoordinate, currentPosition));
-                } else if (currentLocation == BORDER) {
-                    candidate = factory.newOut(currentIndex, cell.createLocation(currentCoordinate, currentPosition));
+                    pushIn(currentIndex, slice.computeLocation(previousCoordinate, currentCoordinate, previousPosition));
+                } else {
+                    pushOut(previousIndex, slice.computeLocation(previousCoordinate, currentCoordinate, currentPosition));
                 }
                 break;
-            case -4: // OUTSIDE -> INSIDE -> OUTSIDE
-                events = events.plus(factory.newIn(-1, cell.computeLocation(previousCoordinate, currentCoordinate, previousPosition)));
-                events = events.plus(factory.newOut(-1, cell.computeLocation(previousCoordinate, currentCoordinate, currentPosition)));
-                candidate = null;
+
+            case -9:
+                pushIn(-1, slice.computeLocation(previousCoordinate, currentCoordinate, previousPosition));
+                pushOut(-1, slice.computeLocation(previousCoordinate, currentCoordinate, currentPosition));
                 break;
 
+            case -2:
             case 2:
-                if (currentLocation == OUTSIDE) { // BORDER -> OUTSIDE
+                if (currentLocation == INSIDE) {
+                    if (candidate != null) {
+                        if (candidate.index != previousIndex) {
+                            pushCandidate();
+                            pushIn(previousIndex, slice.createLocation(previousCoordinate, previousPosition));
+                        } else {
+                            candidate = null;
+                        }
+                    } else {
+                        pushIn(previousIndex, slice.createLocation(previousCoordinate, previousPosition));
+                    }
+                } else {
+                    candidate = factory.newOut(currentIndex, slice.createLocation(currentCoordinate, currentPosition));
+                }
+                break;
+
+            case 6:
+                if (currentLocation == OUTSIDE) {
                     if (candidate != null)
                         pushCandidate();
                 }
                 break;
-            case -2:
-                if (currentLocation == OUTSIDE) { // BORDER -> INSIDE -> OUTSIDE
+
+            case -6:
+                if (currentLocation == BORDER) {
+                    pushIn(currentIndex, slice.computeLocation(previousCoordinate, currentCoordinate, previousPosition));
+                    candidate = factory.newOut(currentIndex, slice.createLocation(currentCoordinate, currentPosition));
+                } else {
                     if (candidate != null) {
                         if (candidate.index != previousIndex) {
                             pushCandidate();
+                            pushIn(previousIndex, slice.createLocation(previousCoordinate, previousPosition));
+                        } else {
+                            candidate = null;
                         }
                     } else {
-                        pushIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition));
+                        pushIn(previousIndex, slice.createLocation(previousCoordinate, previousPosition));
                     }
-
-                    pushOut(previousIndex, cell.computeLocation(previousCoordinate, currentCoordinate, currentPosition));
-                } else { // OUTSIDE -> INSIDE -> BORDER
-                    pushIn(currentIndex, cell.computeLocation(previousCoordinate, currentCoordinate, previousPosition));
-                    candidate = factory.newOut(currentIndex, cell.createLocation(currentCoordinate, currentPosition));
+                    pushOut(previousIndex, slice.computeLocation(previousCoordinate, currentCoordinate, currentPosition));
                 }
                 break;
 
-            case -1:  // BORDER -> INSIDE -> BORDER
+            case -4:
                 if (candidate != null) {
                     if (candidate.index != previousIndex) {
                         pushCandidate();
-                        pushIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition));
+                        pushIn(previousIndex, slice.createLocation(previousCoordinate, previousPosition));
+                    } else {
+                        candidate = null;
                     }
                 } else {
-                    events = events.plus(factory.newIn(previousIndex, cell.createLocation(previousCoordinate, previousPosition)));
+                    pushIn(previousIndex, slice.createLocation(previousCoordinate, previousPosition));
                 }
 
-                candidate = factory.newOut(currentIndex, cell.createLocation(currentCoordinate, currentPosition));
+                candidate = factory.newOut(currentIndex, slice.createLocation(currentCoordinate, currentPosition));
                 break;
+
         }
     }
 
@@ -125,12 +132,12 @@ public class SDetector {
         previousCoordinate = coordinate;
         firstCoordinate = coordinate.copy();
         previousIndex = 0;
-        previousPosition = cell.positionOf(coordinate);
+        previousPosition = slice.positionOf(coordinate);
         firstLocation = location(previousPosition);
         candidate = null;
     }
 
-    public SDetection last(int index, Coordinate coordinate) {
+    public SShape.Detection last(int index, Coordinate coordinate) {
         check(index, coordinate);
 
         if (candidate != null) {
@@ -146,16 +153,16 @@ public class SDetector {
         }
 
 
-        return new SDetection(events, firstCoordinate.equals2D(coordinate), firstLocation, factory);
+        return new SShape.Detection(events, firstCoordinate.equals2D(coordinate), firstLocation, factory);
     }
 
     private int location(int position) {
         switch (position) {
-            case SCell.LOWER:
-            case SCell.UPPER:
+            case Slice.LOWER:
+            case Slice.UPPER:
                 return OUTSIDE;
 
-            case SCell.MIDDLE:
+            case Slice.MIDDLE:
                 return INSIDE;
 
             default:
@@ -168,12 +175,12 @@ public class SDetector {
         candidate = null;
     }
 
-    private void pushIn(int index, @NotNull SCell.Location location) {
+    private void pushIn(int index, @NotNull Slice.Location location) {
         events = events.plus(factory.newIn(index, location));
         candidate = null;
     }
 
-    private void pushOut(int index, @NotNull SCell.Location location) {
+    private void pushOut(int index, @NotNull Slice.Location location) {
         events = events.plus(factory.newOut(index, location));
         candidate = null;
     }
