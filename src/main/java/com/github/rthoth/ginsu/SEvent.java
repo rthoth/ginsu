@@ -71,4 +71,5 @@ public final class SEvent {
             return new SEvent(sequence, index, OUT, location);
         }
     }
+
 }

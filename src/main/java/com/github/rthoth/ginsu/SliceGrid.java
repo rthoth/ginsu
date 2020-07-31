@@ -83,7 +83,7 @@ public class SliceGrid<T extends Geometry> {
         var multishapes = TreePVector.<MultiShape>empty();
         for (var sshape : classified) {
             if (sshape instanceof SShape.Ongoing) {
-                multishapes = multishapes.plus(slicer.slice(((SShape.Ongoing) sshape).getDetections()));
+                multishapes = multishapes.plus(slicer.apply(((SShape.Ongoing) sshape).getDetections()));
             } else if (sshape instanceof SShape.Done)
                 multishapes = multishapes.plus(MultiShape.of(((SShape.Done) sshape).shape));
         }
@@ -96,19 +96,19 @@ public class SliceGrid<T extends Geometry> {
         if (!_1.isEmpty() && !_2.isEmpty()) {
             for (var _1Cell : slice(_1, multiShape)) {
                 for (var _2Cell : slice(_2, _1Cell)) {
-                    data = data.plus(slicer.apply(_2Cell));
+                    data = data.plus(slicer.toGeometry(_2Cell));
                 }
             }
         } else if (!_1.isEmpty()) {
             for (var _1Cell : slice(_1, multiShape)) {
-                data = data.plus(slicer.apply(_1Cell));
+                data = data.plus(slicer.toGeometry(_1Cell));
             }
         } else if (!_2.isEmpty()) {
             for (var _2Cell : slice(_2, multiShape)) {
-                data = data.plus(slicer.apply(_2Cell));
+                data = data.plus(slicer.toGeometry(_2Cell));
             }
         } else {
-            data = data.plus(slicer.apply(multiShape));
+            data = data.plus(slicer.toGeometry(multiShape));
         }
 
         return data;

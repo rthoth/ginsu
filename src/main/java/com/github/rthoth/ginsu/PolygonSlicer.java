@@ -35,8 +35,8 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
     }
 
     @Override
-    public MultiPolygon apply(MultiShape multishape) {
-        return multishape.toMultiPolygon(factory);
+    public MultiShape apply(PVector<SShape.Detection> detections) {
+        return new Slicer(detections).result;
     }
 
     @Override
@@ -48,8 +48,8 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
     }
 
     @Override
-    public MultiShape slice(PVector<SShape.Detection> detections) {
-        return new Slicer(detections).multishape;
+    public MultiPolygon toGeometry(MultiShape multishape) {
+        return multishape.toMultiPolygon(factory);
     }
 
     private static class ProtoPolygon implements Comparable<ProtoPolygon> {
@@ -93,8 +93,8 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
 
     private static class Slicer {
 
-        final SEventSet eventSet = new SEventSet();
-        final MultiShape multishape;
+        final SScanLine scanLine = new SScanLine();
+        final MultiShape result;
         LinkedList<CoordinateSequence> inside = new LinkedList<>();
         TreeSet<ProtoPolygon> protoPolygons = new TreeSet<>();
         SEvent origin;
@@ -103,15 +103,15 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
         public Slicer(PVector<SShape.Detection> detections) {
             for (var detection : detections) {
                 if (!detection.events.isEmpty()) {
-                    eventSet.add(detection);
+                    scanLine.add(detection);
                 } else if (detection.location == SShape.Detection.INSIDE) {
                     inside.add(detection.sequence);
                 }
             }
 
-            if (eventSet.nonEmpty()) {
+            if (scanLine.nonEmpty()) {
 
-                while (eventSet.nonEmpty()) {
+                while (scanLine.nonEmpty()) {
                     protoPolygons.add(new ProtoPolygon(createShell()));
                 }
 
@@ -134,7 +134,7 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
                         protoPolygons.first().add(inside);
                 }
 
-                multishape = MultiShape.of(Ginsu.map(protoPolygons, ProtoPolygon::toShape));
+                result = MultiShape.of(Ginsu.map(protoPolygons, ProtoPolygon::toShape));
             } else {
                 throw new GinsuException.IllegalState("No events!");
             }
@@ -150,7 +150,7 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
 
             do {
                 var forward = SEvent.isIn(start);
-                var stop = forward ? eventSet.extractNext(start) : eventSet.extractPrevious(start);
+                var stop = forward ? scanLine.extractNext(start) : scanLine.extractPrevious(start);
 
                 if (start.index >= 0 && stop.index >= 0) {
                     if (start.location.coordinate != null)
@@ -171,9 +171,9 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
                 }
 
                 if (stop.border() == origin.border()) {
-                    start = direction == UP ? eventSet.extractLower(stop) : eventSet.extractHigher(stop);
+                    start = direction == UP ? scanLine.extractLower(stop) : scanLine.extractHigher(stop);
                 } else {
-                    start = direction == UP ? eventSet.extractHigher(stop) : eventSet.extractLower(stop);
+                    start = direction == UP ? scanLine.extractHigher(stop) : scanLine.extractLower(stop);
                 }
             } while (start != origin);
 
@@ -181,8 +181,8 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
         }
 
         void searchOrigin() {
-            var lower = eventSet.lower();
-            var upper = eventSet.upper();
+            var lower = scanLine.lower();
+            var upper = scanLine.upper();
             if (lower != upper) {
                 origin = null;
                 var ranking = updateOrigin(Integer.MIN_VALUE, UP, lower.getLower(), lower.getUpper());

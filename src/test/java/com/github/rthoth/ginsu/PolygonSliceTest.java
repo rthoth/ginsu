@@ -88,7 +88,7 @@ public class PolygonSliceTest extends AbstractTest implements SDetectionUtil, Ut
         var shell = detect(middle(y(-1), y(1)), parseSequence("(-5 7, -7 5, 3 -5, 1 -7, 7 -7, 7 -1, 5 -3, -5 7)"));
         var hole = detect(middle(y(-1), y(1)), parseSequence("(-5 6, -6 5, 4 -5, 5 -4, -5 6)"));
         var slicer = new PolygonSlicer(GEOMETRY_FACTORY);
-        var slice = slicer.apply(slicer.slice(TreePVector.from(Arrays.asList(shell, hole))));
+        var slice = slicer.toGeometry(slicer.apply(TreePVector.from(Arrays.asList(shell, hole))));
         assertThat(slice.toText())
                 .isEqualTo("MULTIPOLYGON (((3 -1, 1 1, 0 1, 2 -1, 3 -1)), ((-3 1, -1 -1, 0 -1, -2 1, -3 1)))");
     }

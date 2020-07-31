@@ -12,12 +12,12 @@ public abstract class SShape {
         public static final int INSIDE = 16;
         public static final int OUTSIDE = 32;
         public final int location;
-        public final PVector<SEvent> events;
+        public final Seq events;
         public final CoordinateSequence sequence;
         public final boolean isRing;
 
         public Detection(PVector<SEvent> events, boolean isRing, int location, SEvent.Factory factory) {
-            this.events = events;
+            this.events = new Seq(events, isRing);
             this.sequence = factory.getCoordinateSequence();
             this.location = location;
             this.isRing = isRing;
@@ -47,6 +47,12 @@ public abstract class SShape {
 
         public PVector<Detection> getDetections() {
             return detections;
+        }
+    }
+
+    public static class Seq extends AbstractSeq<SEvent> {
+        public Seq(PVector<SEvent> events, boolean closed) {
+            super(events, closed);
         }
     }
 }

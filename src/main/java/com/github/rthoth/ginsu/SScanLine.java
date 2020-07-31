@@ -8,24 +8,23 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * Slice Event Set
+ * Slice Scan Line
  */
-public class SEventSet {
+public class SScanLine {
 
-    private final TreeMap<Double, Entry> scanLine = new TreeMap<>();
+    private final TreeMap<Double, Entry> treeMap = new TreeMap<>();
     private final TreeMap<Double, SEvent> lowerBorder = new TreeMap<>();
     private final TreeMap<Double, SEvent> upperBorder = new TreeMap<>();
-    private PMap<SEvent, EventInfo> eventToInfo = HashTreePMap.empty();
+    private PMap<SEvent, SShape.Detection> eventToDetection = HashTreePMap.empty();
 
     public void add(SShape.Detection detection) {
 
-        for (var index : Ginsu.zipWithIndex(detection.events)) {
-            var event = index.value;
-            eventToInfo = eventToInfo.plus(event, new EventInfo(index.index, detection));
+        for (var event : detection.events.getPVector()) {
+            eventToDetection = eventToDetection.plus(event, detection);
 
-            var entry = scanLine.get(event.ordinate());
+            var entry = treeMap.get(event.ordinate());
             if (entry == null) {
-                scanLine.put(event.ordinate(), new Entry(event));
+                treeMap.put(event.ordinate(), new Entry(event));
             } else {
                 entry.put(event);
             }
@@ -39,9 +38,9 @@ public class SEventSet {
 
     private SEvent extract(SEvent event) {
         getBorder(event).remove(event.ordinate());
-        var entry = scanLine.get(event.ordinate());
+        var entry = treeMap.get(event.ordinate());
         if (entry.remove(event)) {
-            scanLine.remove(entry.ordinate);
+            treeMap.remove(entry.ordinate);
         }
 
         return event;
@@ -63,29 +62,22 @@ public class SEventSet {
             throw new GinsuException.IllegalState("Invalid move!");
     }
 
-    public SEvent extractNext(SEvent origin) {
-        var info = eventToInfo.get(origin);
-        var nextIndex = info.index + 1;
+    public SEvent extractNext(SEvent event) {
+        final var optional = eventToDetection.get(event)
+                .events.next(event);
 
-        if (nextIndex < info.detection.events.size()) {
-            return extract(info.detection.events.get(nextIndex));
-        } else if (info.detection.isRing) {
-            return extract(info.detection.events.get(0));
-        } else
+        if (optional.isPresent())
+            return extract(optional.get());
+        else
             throw new GinsuException.IllegalState("No next event!");
     }
 
-    public SEvent extractPrevious(SEvent origin) {
-        var info = eventToInfo.get(origin);
-        var previousIndex = info.index - 1;
-
-        if (previousIndex >= 0) {
-            return extract(info.detection.events.get(previousIndex));
-        } else if (info.detection.isRing) {
-            return extract(info.detection.events.get(info.detection.events.size() + previousIndex));
-        } else {
+    public SEvent extractPrevious(SEvent event) {
+        final var optional = eventToDetection.get(event).events.previous(event);
+        if (optional.isPresent())
+            return extract(optional.get());
+        else
             throw new GinsuException.IllegalState("No previous event!");
-        }
     }
 
     private TreeMap<Double, SEvent> getBorder(SEvent event) {
@@ -104,15 +96,15 @@ public class SEventSet {
     }
 
     public Entry lower() {
-        return getEntry(scanLine.firstEntry());
+        return getEntry(treeMap.firstEntry());
     }
 
     public boolean nonEmpty() {
-        return !scanLine.isEmpty();
+        return !treeMap.isEmpty();
     }
 
     public Entry upper() {
-        return getEntry(scanLine.lastEntry());
+        return getEntry(treeMap.lastEntry());
     }
 
     protected static class Entry {
@@ -179,17 +171,6 @@ public class SEventSet {
             }
 
             return lower == null && upper == null;
-        }
-    }
-
-    private static class EventInfo {
-
-        private final int index;
-        private final SShape.Detection detection;
-
-        public EventInfo(int index, SShape.Detection detection) {
-            this.index = index;
-            this.detection = detection;
         }
     }
 }

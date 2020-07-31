@@ -1,13 +1,8 @@
 package com.github.rthoth.ginsu;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.pcollections.PVector;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.TreeMap;
 
 public class PolygonMerger extends GeometryMerger<MultiPolygon> {
 
@@ -20,97 +15,37 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
     }
 
     @Override
-    public MShape classify(MShape.Detection detection, Shape shape) {
-        if (!detection.events.isEmpty()) {
-            return new MShape.Ongoing(detection);
-        } else if (detection.location == MShape.Detection.INSIDE) {
-            return new MShape.Done(shape);
-        } else {
-            return new MShape.Done(Shape.EMPTY);
-        }
+    public MultiPolygon apply(PVector<MShape> mshapes) {
+        return new Merger(mshapes).result;
     }
 
     @Override
-    public MultiPolygon merge(PVector<MShape.Detection> detections, PVector<Shape> shapes) {
-        return new Merger(detections, shapes).result;
-    }
-
-    private class E {
-
-        final MEvent event;
-        final MShape.Detection detection;
-
-        public E(MEvent event, MShape.Detection detection) {
-            this.event = event;
-            this.detection = detection;
+    public MShape.Result classify(MShape.Detection detection, Shape shape) {
+        if (detection.events.nonEmpty()) {
+            return new MShape.OngoingResult(detection);
+        } else if (detection.location == MShape.Detection.INSIDE) {
+            return new MShape.DoneResult(shape);
+        } else {
+            return new MShape.DoneResult(Shape.EMPTY);
         }
-    }
-
-    private class Node {
-
-        @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
-        final List<E> elements = new ArrayList<>(2);
-
-        public Node(MEvent event, MShape.Detection detection) {
-            elements.add(new E(event, detection));
-        }
-
     }
 
     private class Merger {
 
         MultiPolygon result;
-        TreeMap<Q, Node> nodes;
+        MScanLine scanLine = new MScanLine(offset);
 
-        public Merger(PVector<MShape.Detection> detections, PVector<Shape> shapes) {
-            if (!detections.isEmpty()) {
-                nodes = new TreeMap<>();
+        public Merger(PVector<MShape> mshapes) {
+            for (var mshape : mshapes) {
+                if (!mshape.isDone()) {
+                    scanLine.add(mshape);
+                } else if (mshape.hasContent()) {
 
-                for (var detection : detections) {
-                    for (var event : detection.events) {
-                        final var q = new Q(event.getCoordinate());
-                        final var node = nodes.get(q);
-                        if (node == null) {
-                            nodes.put(q, new Node(event, detection));
-                        } else {
-                            node.elements.add(new E(event, detection));
-                        }
-                    }
                 }
-
-                for (var entry : nodes.entrySet()) {
-                    final var node = entry.getValue();
-
-                    if (node.elements.size() == 2) {
-                        System.out.println("Conectado!");
-                    } else if (node.elements.size() == 1) {
-                        System.out.println("Não conectado!");
-                    } else {
-                        System.out.println("ESTRANHO!");
-                    }
-                }
-
-            } else {
-                result = MultiShape.of(shapes).toMultiPolygon(factory);
             }
+
+            var next = scanLine.next();
         }
     }
 
-    private class Q implements Comparable<Q> {
-
-        final double x;
-        final double y;
-
-
-        public Q(Coordinate coordinate) {
-            x = coordinate.getX();
-            y = coordinate.getY();
-        }
-
-        @Override
-        public int compareTo(Q q) {
-            final var c = Ginsu.compare(x, offset, q.x);
-            return c != 0 ? c : Ginsu.compare(y, offset, q.y);
-        }
-    }
 }

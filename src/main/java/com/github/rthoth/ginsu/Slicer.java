@@ -32,7 +32,6 @@ public class Slicer {
         this.extrusion = extrusion;
     }
 
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     private static <K extends Knife<K>> void isValid(PVector<K> vector) {
         if (!vector.isEmpty()) {
             final var iterator = vector.iterator();

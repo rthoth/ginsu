@@ -26,7 +26,7 @@ public class MergeGrid<T extends Geometry> {
         var xSlices = x.size() > 0 ? slices(x) : TreePVector.singleton(Slice.INNER);
         var ySlices = y.size() > 0 ? slices(y) : TreePVector.singleton(Slice.INNER);
 
-        this.xSlices = Ginsu.zipWithIndex(xSlices);
+        this.xSlices = Ginsu.toVector(Ginsu.zipWithIndex(xSlices));
         this.ySlices = Ginsu.zipWithIndex(ySlices);
     }
 
@@ -47,26 +47,17 @@ public class MergeGrid<T extends Geometry> {
         if (grid.width == width && grid.height == height) {
             // TODO: Parallel?
 
-            var detections = TreePVector.<MShape.Detection>empty();
-            var shapes = TreePVector.<Shape>empty();
+            var mshapes = TreePVector.<MShape>empty();
 
             for (var xEntry : xSlices) {
                 for (var yEntry : ySlices) {
                     for (var mshape : detect(xEntry.value, yEntry.value, grid.get(xEntry.index, yEntry.index))) {
-                        if (mshape instanceof MShape.Ongoing) {
-                            detections = detections.plusAll(((MShape.Ongoing) mshape).getDetections());
-                        } else if (mshape instanceof MShape.Done) {
-                            var shape = ((MShape.Done) mshape).shape;
-                            if (shape.nonEmpty())
-                                shapes = shapes.plus(shape);
-                        } else {
-                            throw new GinsuException.IllegalState("Invalid detection!");
-                        }
+                        mshapes = mshapes.plus(mshape);
                     }
                 }
             }
 
-            return merger.merge(detections, shapes);
+            return merger.apply(mshapes);
         } else {
             throw new GinsuException.IllegalArgument("Invalid grid size!");
         }
@@ -97,19 +88,19 @@ public class MergeGrid<T extends Geometry> {
     private MShape detect(Slice x, Slice y, Shape shape) {
         final var iterator = shape.iterator();
         final var first = MDetector.detect(x, y, Ginsu.next(iterator));
-        var mshape = merger.classify(first, shape);
+        var result = merger.classify(first, shape);
 
-        if (mshape instanceof MShape.Ongoing) {
-            var ongoing = (MShape.Ongoing) mshape;
+        if (result instanceof MShape.OngoingResult) {
+            var ongoing = (MShape.OngoingResult) result;
             while (iterator.hasNext()) {
                 ongoing.add(MDetector.detect(x, y, iterator.next()));
             }
 
-            return ongoing;
-        } else if (mshape instanceof MShape.Done) {
-            return mshape;
+            return ongoing.apply();
+        } else if (result instanceof MShape.DoneResult) {
+            return result.apply();
         } else {
-            throw new GinsuException.IllegalState("Invalid status [" + mshape + "]!");
+            throw new GinsuException.IllegalState("Invalid status [" + result + "]!");
         }
     }
 }

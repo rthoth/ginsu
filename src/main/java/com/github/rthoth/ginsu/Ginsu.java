@@ -83,6 +83,17 @@ public class Ginsu {
             throw new NoSuchElementException();
     }
 
+    public static <T> PVector<T> toVector(Iterable<T> iterable) {
+        if (!(iterable instanceof PVector)) {
+            var vector = TreePVector.<T>empty();
+            for (var element : iterable)
+                vector = vector.plus(element);
+
+            return vector;
+        } else
+            return (PVector<T>) iterable;
+    }
+
     public static <T> Iterable<IndexEntry<T>> zipWithIndex(Iterable<T> iterable) {
         return () -> new Iterator<>() {
 

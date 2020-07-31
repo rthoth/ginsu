@@ -17,6 +17,7 @@ public class MDetector {
     private int firstLocation;
     private MEvent candidate;
     private PVector<MEvent> events;
+    private MEvent lastEvent;
 
     public MDetector(Slice x, Slice y, MEvent.Factory factory) {
         this.x = new Dimension(x);
@@ -90,6 +91,12 @@ public class MDetector {
             }
         }
 
+        if (!events.isEmpty()) {
+            if (lastEvent.index == index && MEvent.isCorner(lastEvent) && events.get(0).index == 0) {
+                events = events.minus(events.size() - 1);
+            }
+        }
+
         return new MShape.Detection(events, firstCoordinate.equals2D(coordinate), firstLocation, factory);
     }
 
@@ -104,8 +111,8 @@ public class MDetector {
     }
 
     private void push(MEvent event) {
+        lastEvent = event;
         events = events.plus(event);
-        candidate = null;
     }
 
     private void pushCandidate(int index, Coordinate coordinate) {
@@ -118,21 +125,43 @@ public class MDetector {
 
     private void pushIn(int index, Coordinate coordinate) {
         if (candidate == null) {
-            events = events.plus(factory.newIn(index, coordinate));
+            push(factory.newIn(index, coordinate));
         } else if (candidate.index < index) {
-            events = events.plus(candidate);
-            events = events.plus(factory.newIn(index, coordinate));
+            push(candidate);
+            push(factory.newIn(index, coordinate));
             candidate = null;
         } else {
             candidate = null;
         }
     }
 
+    private void pushInCorner(int index, Coordinate coordinate) {
+        if (candidate == null) {
+            if (lastEvent == null || lastEvent.index != index)
+                push(factory.newCorner(index, coordinate));
+        } else {
+            if (candidate.index != index) {
+                push(candidate);
+                if (lastEvent == null || lastEvent.index != index)
+                    push(factory.newCorner(index, coordinate));
+            } else {
+                push(candidate);
+            }
+            candidate = null;
+        }
+    }
+
     private void pushOut(int index, Coordinate coordinate) {
         if (candidate == null) {
-            events = events.plus(factory.newOut(index, coordinate));
+            push(factory.newOut(index, coordinate));
         } else {
             throw new GinsuException.IllegalState("There is a candidate!");
+        }
+    }
+
+    private void pushOutCorner(int index, Coordinate coordinate) {
+        if (candidate == null && !MEvent.isCorner(lastEvent)) {
+            push(factory.newCorner(index, coordinate));
         }
     }
 
@@ -143,6 +172,8 @@ public class MDetector {
         public static final int UNDEFINED = 0;
         public static final int IN = 2;
         public static final int CANDIDATE = 3;
+        public static final int IN_CORNER = 102;
+        public static final int OUT_CORNER = 101;
 
         private final int index;
         private final Coordinate coordinate;
@@ -171,6 +202,14 @@ public class MDetector {
 
                 case CANDIDATE:
                     detector.pushCandidate(index, referenced ? null : coordinate);
+                    break;
+
+                case IN_CORNER:
+                    detector.pushInCorner(index, referenced ? null : coordinate);
+                    break;
+
+                case OUT_CORNER:
+                    detector.pushOutCorner(index, referenced ? null : coordinate);
                     break;
             }
 
@@ -209,10 +248,6 @@ public class MDetector {
             cCoordinate = coordinate;
         }
 
-        private Coordinate computeIntersection(int position) {
-            return slice.intersection(pCoordinate, cCoordinate, position);
-        }
-
         public Segment createSegment() {
             final var segment = new Segment(newAction(pIndex, pCoordinate, true, Action.UNDEFINED), newAction(cIndex, cCoordinate, true, Action.UNDEFINED));
             return filter(segment);
@@ -223,6 +258,8 @@ public class MDetector {
             final var target = segment.target;
             final var pIndex = origin.index;
             final var cIndex = target.index;
+            final var pCoordinate = origin.coordinate;
+            final var cCoordinate = target.coordinate;
 
             switch (product) {
                 case 1:
@@ -230,13 +267,16 @@ public class MDetector {
                 case 3:
                 case -3:
                     if (previous == MIDDLE) {
-                        return segment.withTarget(target.upgrade(pIndex, computeIntersection(current), false, Action.OUT));
+                        return segment.withTarget(target.upgrade(pIndex, slice.intersection(pCoordinate, cCoordinate, current), false, Action.OUT));
                     } else {
-                        return segment.withOrigin(origin.upgrade(cIndex, computeIntersection(previous), false, Action.IN));
+                        return segment.withOrigin(origin.upgrade(cIndex, slice.intersection(pCoordinate, cCoordinate, previous), false, Action.IN));
                     }
 
                 case -9:
-                    return new Segment(newAction(-1, computeIntersection(previous), false, Action.IN), newAction(-1, computeIntersection(current), false, Action.OUT));
+                    return new Segment(
+                            newAction(-1, slice.intersection(pCoordinate, cCoordinate, previous), false, Action.IN),
+                            newAction(-1, slice.intersection(pCoordinate, cCoordinate, current), false, Action.OUT)
+                    );
 
                 case 2:
                 case -2:
@@ -249,11 +289,20 @@ public class MDetector {
                 case -4:
                     return new Segment(origin.upgrade(pIndex, pCoordinate, origin.referenced, Action.IN), target.upgrade(cIndex, cCoordinate, target.referenced, Action.CANDIDATE));
 
+                case -6:
+                    if (Math.abs(current) == 2) {
+                        segment = segment.withOrigin(newAction(cIndex, slice.intersection(pCoordinate, cCoordinate, previous), false, Action.IN));
+                        return segment.withTarget(target.withKind(Action.CANDIDATE));
+                    } else {
+                        segment = segment.withOrigin(origin.withKind(Action.IN));
+                        return segment.withTarget(newAction(pIndex, slice.intersection(pCoordinate, cCoordinate, current), false, Action.OUT));
+                    }
+
                 case 4:
                     if (origin.kind != Action.UNDEFINED)
-                        segment = segment.withOrigin(origin.withKind(Action.UNDEFINED));
+                        segment = segment.withOrigin(origin.withKind(Action.IN_CORNER));
                     if (target.kind != Action.UNDEFINED)
-                        segment = segment.withTarget(target.withKind(Action.UNDEFINED));
+                        segment = segment.withTarget(target.withKind(Action.OUT_CORNER));
 
                     return segment;
 
