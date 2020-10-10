@@ -2,14 +2,22 @@ package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.geom.Coordinate;
 
+import java.util.Objects;
+
 public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
 
-    protected final double offset;
-    protected final double value;
+    public final double offset;
+    public final double value;
+    public final Dimension dimension;
 
-    public Knife(double value, double offset) {
+    public Knife(double value, double offset, Dimension dimension) {
         this.value = value;
         this.offset = offset;
+
+        if (dimension == Dimension.X || dimension == Dimension.Y)
+            this.dimension = dimension;
+        else
+            throw new GinsuException.IllegalArgument(Objects.toString(dimension));
     }
 
     public abstract K extrude(double extrusion);
@@ -30,7 +38,7 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
         private final X lower;
 
         public X(double value, double offset, double extrusion) {
-            super(value, offset);
+            super(value, offset, Dimension.X);
             if (extrusion != 0D) {
                 lower = new X(value - extrusion, offset, 0D);
                 upper = new X(value + extrusion, offset, 0D);
@@ -91,7 +99,7 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
         private final Y upper;
 
         public Y(double value, double offset, double extrusion) {
-            super(value, offset);
+            super(value, offset, Dimension.Y);
             if (extrusion != 0D) {
                 upper = new Y(value + extrusion, offset, 0D);
                 lower = new Y(value - extrusion, offset, 0D);

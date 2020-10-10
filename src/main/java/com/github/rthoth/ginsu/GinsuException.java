@@ -21,6 +21,9 @@ public abstract class GinsuException extends RuntimeException {
         public IllegalState(String message) {
             super(message);
         }
+
+        public IllegalState() {
+        }
     }
 
     public static class InvalidIndex extends GinsuException {

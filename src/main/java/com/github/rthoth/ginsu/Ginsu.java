@@ -1,5 +1,9 @@
 package com.github.rthoth.ginsu;
 
+import org.locationtech.jts.algorithm.RayCrossingCounter;
+import org.locationtech.jts.geom.CoordinateSequence;
+import org.locationtech.jts.geom.Location;
+import org.pcollections.PSet;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
@@ -9,6 +13,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class Ginsu {
 
@@ -17,6 +22,10 @@ public class Ginsu {
 
     private Ginsu() {
 
+    }
+
+    public static <T> PVector<T> addIfNonNull(PVector<T> vector, T value) {
+        return value != null ? vector.plus(value) : vector;
     }
 
     public static <I, M> PVector<M> collect(Iterable<I> iterable, Function<I, Optional<M>> predicate) {
@@ -32,6 +41,29 @@ public class Ginsu {
 
     public static int compare(double reference, double offset, double value) {
         return Math.abs(reference - value) > offset ? Double.compare(reference, value) : 0;
+    }
+
+    public static <T> PVector<T> filter(Iterable<T> iterable, Predicate<T> predicate) {
+        var result = TreePVector.<T>empty();
+        for (var element : iterable) {
+            if (predicate.test(element))
+                result = result.plus(element);
+        }
+
+        return result;
+    }
+
+    public static <T> T first(Iterable<T> iterable) {
+        return next(iterable.iterator());
+    }
+
+    public static <T> Optional<T> first(Iterable<T> iterable, Predicate<T> predicate) {
+        for (var element : iterable) {
+            if (predicate.test(element))
+                return Optional.of(element);
+        }
+
+        return Optional.empty();
     }
 
     public static <M extends Mergeable<M>, V extends PVector<M>> PVector<M> flatten(PVector<V> vector) {
@@ -54,6 +86,17 @@ public class Ginsu {
         } else {
             return TreePVector.empty();
         }
+    }
+
+    public static boolean inside(CoordinateSequence sequence, CoordinateSequence shell) {
+        for (var i = 0; i < sequence.size(); i++) {
+            var location = RayCrossingCounter.locatePointInRing(sequence.getCoordinate(i), shell);
+            if (location != Location.BOUNDARY) {
+                return location == Location.INTERIOR;
+            }
+        }
+
+        return false;
     }
 
     public static <I, M> PVector<M> map(Iterable<I> input, Function<I, M> mapper) {
@@ -81,6 +124,15 @@ public class Ginsu {
             return iterator.next();
         else
             throw new NoSuchElementException();
+    }
+
+    @SafeVarargs
+    public static <T> PSet<T> plus(PSet<T> set, T... values) {
+        for (var value : values)
+            if (value != null)
+                set = set.plus(value);
+
+        return set;
     }
 
     public static <T> PVector<T> toVector(Iterable<T> iterable) {

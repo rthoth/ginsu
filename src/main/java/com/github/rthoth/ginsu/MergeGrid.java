@@ -17,11 +17,15 @@ public class MergeGrid<T extends Geometry> {
     private final GeometryMerger<T> merger;
     private final int width;
     private final int height;
+    private final PVector<X> x;
+    private final PVector<Y> y;
 
     public MergeGrid(PVector<X> x, PVector<Y> y, GeometryMerger<T> merger) {
         this.merger = merger;
         this.width = x.size() + 1;
         this.height = y.size() + 1;
+        this.x = x;
+        this.y = y;
 
         var xSlices = x.size() > 0 ? slices(x) : TreePVector.singleton(Slice.INNER);
         var ySlices = y.size() > 0 ? slices(y) : TreePVector.singleton(Slice.INNER);
@@ -47,23 +51,21 @@ public class MergeGrid<T extends Geometry> {
         if (grid.width == width && grid.height == height) {
             // TODO: Parallel?
 
-            var mshapes = TreePVector.<MShape>empty();
+            var nshapes = TreePVector.<DetectionShape>empty();
 
             for (var xEntry : xSlices) {
                 for (var yEntry : ySlices) {
-                    for (var mshape : detect(xEntry.value, yEntry.value, grid.get(xEntry.index, yEntry.index))) {
-                        mshapes = mshapes.plus(mshape);
-                    }
+                    nshapes = nshapes.plusAll(detect(xEntry.value, yEntry.value, grid.get(xEntry.index, yEntry.index)));
                 }
             }
 
-            return merger.apply(mshapes);
+            return merger.apply(nshapes, x, y);
         } else {
             throw new GinsuException.IllegalArgument("Invalid grid size!");
         }
     }
 
-    private PVector<MShape> detect(Slice x, Slice y, Grid.Entry<Optional<MultiShape>> entry) {
+    private PVector<DetectionShape> detect(Slice x, Slice y, Grid.Entry<Optional<MultiShape>> entry) {
         if (entry.value.isPresent()) {
             final var multishape = entry.value.get();
             if (multishape.nonEmpty()) {
@@ -76,8 +78,8 @@ public class MergeGrid<T extends Geometry> {
         }
     }
 
-    private PVector<MShape> detect(Slice x, Slice y, MultiShape multishape) {
-        var result = TreePVector.<MShape>empty();
+    private PVector<DetectionShape> detect(Slice x, Slice y, MultiShape multishape) {
+        var result = TreePVector.<DetectionShape>empty();
         for (final var shape : multishape) {
             result = result.plus(detect(x, y, shape));
         }
@@ -85,22 +87,19 @@ public class MergeGrid<T extends Geometry> {
         return result;
     }
 
-    private MShape detect(Slice x, Slice y, Shape shape) {
+    private DetectionShape detect(Slice x, Slice y, Shape shape) {
         final var iterator = shape.iterator();
-        final var first = MDetector.detect(x, y, Ginsu.next(iterator));
-        var result = merger.classify(first, shape);
-
-        if (result instanceof MShape.OngoingResult) {
-            var ongoing = (MShape.OngoingResult) result;
+        final var first = Detector.detect(x, y, Ginsu.next(iterator), true);
+        final var optional = merger.preApply(first, shape);
+        if (optional.isEmpty()) {
+            var detections = TreePVector.singleton(first);
             while (iterator.hasNext()) {
-                ongoing.add(MDetector.detect(x, y, iterator.next()));
+                detections = detections.plus(Detector.detect(x, y, iterator.next(), !merger.isPolygon()));
             }
 
-            return ongoing.apply();
-        } else if (result instanceof MShape.DoneResult) {
-            return result.apply();
+            return DetectionShape.of(detections);
         } else {
-            throw new GinsuException.IllegalState("Invalid status [" + result + "]!");
+            return DetectionShape.of(optional.get());
         }
     }
 }

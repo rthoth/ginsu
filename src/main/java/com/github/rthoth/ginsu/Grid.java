@@ -1,6 +1,5 @@
 package com.github.rthoth.ginsu;
 
-import org.locationtech.jts.geom.Geometry;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
@@ -77,6 +76,20 @@ public abstract class Grid<T> {
 
     protected abstract int mapToIndex(int x, int y);
 
+    public String toWKT() {
+        var iterator = iterable().iterator();
+        var wkt = new StringBuilder();
+        wkt.append("GEOMETRYCOLLECTION (");
+
+        while (iterator.hasNext()) {
+            wkt.append(iterator.next().value);
+            if (iterator.hasNext())
+                wkt.append(", ");
+        }
+
+        return wkt.append(")").toString();
+    }
+
     public <M> Grid<M> view(Function<T, M> mapper) {
         return new View<>(this, mapper);
     }
@@ -131,7 +144,7 @@ public abstract class Grid<T> {
         }
     }
 
-    public static class XY<T extends Geometry> extends Grid<T> {
+    public static class XY<T> extends Grid<T> {
 
         public XY(int width, int height, PVector<T> data) {
             super(width, height, data);
@@ -143,7 +156,7 @@ public abstract class Grid<T> {
         }
     }
 
-    public static class YX<T extends Geometry> extends Grid<T> {
+    public static class YX<T> extends Grid<T> {
 
         public YX(int width, int height, PVector<T> data) {
             super(width, height, data);

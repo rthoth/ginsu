@@ -3,6 +3,7 @@ package com.github.rthoth.ginsu;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.CoordinateSequences;
+import org.locationtech.jts.geom.Envelope;
 
 public abstract class Segment {
 
@@ -43,6 +44,8 @@ public abstract class Segment {
     public static Segment wrap(Segment segment, int size) {
         return new Wrapper(segment, size);
     }
+
+    public abstract Envelope expandEnvelope(Envelope envelope);
 
     public abstract Coordinate getCoordinate(int index);
 
@@ -85,6 +88,14 @@ public abstract class Segment {
         public Line(Coordinate start, Coordinate stop) {
             this.start = start;
             this.stop = stop;
+        }
+
+        @Override
+        public Envelope expandEnvelope(Envelope envelope) {
+            envelope.expandToInclude(start);
+            envelope.expandToInclude(stop);
+
+            return envelope;
         }
 
         @Override
@@ -136,9 +147,10 @@ public abstract class Segment {
             this.point = point;
         }
 
-        private void check(int index) {
-            if (index != 0)
-                throw new GinsuException.IllegalArgument(Integer.toString(index));
+        @Override
+        public Envelope expandEnvelope(Envelope envelope) {
+            envelope.expandToInclude(point);
+            return envelope;
         }
 
         @Override
@@ -175,6 +187,11 @@ public abstract class Segment {
         public int size() {
             return 1;
         }
+
+        private void check(int index) {
+            if (index != 0)
+                throw new GinsuException.IllegalArgument(Integer.toString(index));
+        }
     }
 
     public static class PointView extends Segment {
@@ -186,9 +203,10 @@ public abstract class Segment {
             this.sequence = sequence;
         }
 
-        private void check(int index) {
-            if (index != 0)
-                throw new GinsuException.InvalidIndex(index);
+        @Override
+        public Envelope expandEnvelope(Envelope envelope) {
+            envelope.expandToInclude(getCoordinate(0));
+            return envelope;
         }
 
         @Override
@@ -223,6 +241,11 @@ public abstract class Segment {
         public int size() {
             return 1;
         }
+
+        private void check(int index) {
+            if (index != 0)
+                throw new GinsuException.InvalidIndex(index);
+        }
     }
 
     public static abstract class View extends Segment {
@@ -239,6 +262,15 @@ public abstract class Segment {
             this.size = size;
             this.isRing = isRing;
             this.sequence = sequence;
+        }
+
+        @Override
+        public Envelope expandEnvelope(Envelope envelope) {
+            for (var i = 0; i < size; i++) {
+                envelope.expandToInclude(getCoordinate(i));
+            }
+
+            return envelope;
         }
 
         @Override
@@ -266,8 +298,6 @@ public abstract class Segment {
             return sequence.getY(mapIndex(index));
         }
 
-        protected abstract int mapIndex(int index);
-
         public Segment point(int index) {
             return new PointView(mapIndex(index), sequence);
         }
@@ -276,6 +306,8 @@ public abstract class Segment {
         public int size() {
             return size;
         }
+
+        protected abstract int mapIndex(int index);
     }
 
     public static class Wrapper extends Segment {
@@ -285,6 +317,11 @@ public abstract class Segment {
         public Wrapper(Segment segment, int bottom) {
             this.segment = segment;
             this.bottom = bottom;
+        }
+
+        @Override
+        public Envelope expandEnvelope(Envelope envelope) {
+            return segment.expandEnvelope(envelope);
         }
 
         @Override

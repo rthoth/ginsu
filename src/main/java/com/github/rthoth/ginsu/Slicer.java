@@ -55,6 +55,14 @@ public class Slicer {
         }
     }
 
+    public PVector<X> getX() {
+        return x;
+    }
+
+    public PVector<Y> getY() {
+        return y;
+    }
+
     @SuppressWarnings("unused")
     public Grid<MultiLineString> lineal(Lineal lineal) {
         return this.lineal(lineal, Order.AUTOMATIC);
@@ -74,7 +82,7 @@ public class Slicer {
     }
 
     public Grid<MultiPolygon> polygonal(Polygonal polygonal, Order order) {
-        return new SliceGrid<>(x, y, new PolygonSlicer(((Geometry) polygonal).getFactory())).apply(MultiShape.of(polygonal), order);
+        return new SliceGrid<>(x, y, offset, new PolygonSlicer(((Geometry) polygonal).getFactory())).apply(MultiShape.of(polygonal), order);
     }
 
     @SuppressWarnings("unused")

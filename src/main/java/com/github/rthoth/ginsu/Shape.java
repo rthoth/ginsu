@@ -42,18 +42,11 @@ public abstract class Shape implements Iterable<CoordinateSequence> {
         return !sequences.isEmpty() ? new NotEmpty(sequences, null) : EMPTY;
     }
 
-    public abstract Geometry getSource();
-
     public abstract boolean nonEmpty();
 
     public abstract Polygon toPolygon(GeometryFactory factory);
 
     private static class Empty extends Shape {
-
-        @Override
-        public Geometry getSource() {
-            return null;
-        }
 
         @Override
         public Iterator<CoordinateSequence> iterator() {
@@ -79,11 +72,6 @@ public abstract class Shape implements Iterable<CoordinateSequence> {
         public NotEmpty(PVector<CoordinateSequence> sequences, Geometry source) {
             this.sequences = sequences;
             this.source = source;
-        }
-
-        @Override
-        public Geometry getSource() {
-            return source;
         }
 
         @Override

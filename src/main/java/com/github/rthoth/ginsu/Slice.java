@@ -6,16 +6,18 @@ import org.pcollections.TreePVector;
 
 public abstract class Slice {
 
-    public static final int MIDDLE = 1;
     public static final int LOWER = -3;
     public static final int LOWER_BORDER = -2;
+    public static final int MIDDLE = 1;
     public static final int UPPER_BORDER = 2;
     public static final int UPPER = 3;
+
     public static final Slice INNER = new Inner();
 
-    protected static Location computeLocation(Coordinate origin, Coordinate target, int border, Knife<?> knife) {
-        final var intersection = knife.intersection(origin, target);
-        return new Location(border, knife.ordinateOf(intersection), intersection);
+    private final Dimension dimension;
+
+    protected Slice(Dimension dimension) {
+        this.dimension = dimension;
     }
 
     public static <K extends Knife<K>> PVector<Slice> from(Iterable<K> knives) {
@@ -45,32 +47,49 @@ public abstract class Slice {
         return new Middle<>(lower, upper);
     }
 
+    public static Dimension.Side sideOf(int border) {
+        switch (border) {
+            case LOWER:
+            case LOWER_BORDER:
+                return Dimension.Side.GREATER;
+
+            case UPPER:
+            case UPPER_BORDER:
+                return Dimension.Side.LESS;
+
+            default:
+                throw new GinsuException.IllegalArgument("Invalid border:" + border);
+        }
+    }
+
     public static <K extends Knife<K>> Slice upper(K lower) {
         return new Upper<>(lower);
     }
 
-    public abstract Location computeLocation(Coordinate origin, Coordinate target, int border);
+    public Dimension getDimension() {
 
-    public abstract Location createLocation(Coordinate coordinate, int border);
+        return dimension;
+    }
 
     public abstract Coordinate intersection(Coordinate origin, Coordinate target, int border);
+
+    public abstract double ordinateOf(Coordinate coordinate);
 
     public abstract int positionOf(Coordinate coordinate);
 
     private static class Inner extends Slice {
 
-        @Override
-        public Location computeLocation(Coordinate origin, Coordinate target, int border) {
-            throw new GinsuException.Unsupported();
-        }
-
-        @Override
-        public Location createLocation(Coordinate coordinate, int border) {
-            throw new GinsuException.Unsupported();
+        private Inner() {
+            super(null);
         }
 
         @Override
         public Coordinate intersection(Coordinate origin, Coordinate target, int border) {
+            throw new GinsuException.Unsupported();
+        }
+
+        @Override
+        public double ordinateOf(Coordinate coordinate) {
             throw new GinsuException.Unsupported();
         }
 
@@ -80,48 +99,13 @@ public abstract class Slice {
         }
     }
 
-    public static class Location {
-
-        public final int border;
-
-        public final double ordinate;
-
-        public final Coordinate coordinate;
-
-        public Location(int border, double ordinate, Coordinate coordinate) {
-            this.border = border > 1 ? UPPER_BORDER : LOWER_BORDER;
-            this.ordinate = ordinate;
-            this.coordinate = coordinate;
-        }
-
-        @Override
-        public String toString() {
-            return (border > 1 ? "U" : "L") + "[" + ordinate + "]";
-        }
-    }
-
     public static class Lower<K extends Knife<K>> extends Slice {
 
         private final K upper;
 
         public Lower(K upper) {
+            super(upper.dimension);
             this.upper = upper;
-        }
-
-        @Override
-        public Location computeLocation(Coordinate origin, Coordinate target, int border) {
-            if (border > 1)
-                return computeLocation(origin, target, border, upper);
-            else
-                throw new GinsuException.Unsupported();
-        }
-
-        @Override
-        public Location createLocation(Coordinate coordinate, int border) {
-            if (border > 1)
-                return new Location(border, upper.ordinateOf(coordinate), null);
-            else
-                throw new GinsuException.Unsupported();
         }
 
         @Override
@@ -130,6 +114,11 @@ public abstract class Slice {
                 return upper.intersection(origin, target);
             else
                 throw new GinsuException.IllegalArgument(String.format("Border [%d]", border));
+        }
+
+        @Override
+        public double ordinateOf(Coordinate coordinate) {
+            return upper.ordinateOf(coordinate);
         }
 
         @Override
@@ -153,28 +142,9 @@ public abstract class Slice {
         private final K upper;
 
         public Middle(K lower, K upper) {
+            super(lower.dimension);
             this.lower = lower;
             this.upper = upper;
-        }
-
-        @Override
-        public Location computeLocation(Coordinate origin, Coordinate target, int border) {
-            if (border > 1)
-                return computeLocation(origin, target, border, upper);
-            else if (border < 1)
-                return computeLocation(origin, target, border, lower);
-            else
-                throw new GinsuException.Unsupported();
-        }
-
-        @Override
-        public Location createLocation(Coordinate coordinate, int border) {
-            if (border > 1)
-                return new Location(border, upper.ordinateOf(coordinate), null);
-            else if (border < 1)
-                return new Location(border, lower.ordinateOf(coordinate), null);
-            else
-                throw new GinsuException.Unsupported();
         }
 
         @Override
@@ -185,6 +155,11 @@ public abstract class Slice {
                 return lower.intersection(origin, target);
             else
                 throw new GinsuException.IllegalArgument(String.format("Border [%d]!", border));
+        }
+
+        @Override
+        public double ordinateOf(Coordinate coordinate) {
+            return lower.ordinateOf(coordinate);
         }
 
         @Override
@@ -214,23 +189,8 @@ public abstract class Slice {
         private final K lower;
 
         public Upper(K lower) {
+            super(lower.dimension);
             this.lower = lower;
-        }
-
-        @Override
-        public Location computeLocation(Coordinate origin, Coordinate target, int border) {
-            if (border < 1)
-                return computeLocation(origin, target, border, lower);
-            else
-                throw new GinsuException.Unsupported();
-        }
-
-        @Override
-        public Location createLocation(Coordinate coordinate, int border) {
-            if (border < 1)
-                return new Location(border, lower.ordinateOf(coordinate), null);
-            else
-                throw new GinsuException.Unsupported();
         }
 
         @Override
@@ -239,6 +199,11 @@ public abstract class Slice {
                 return lower.intersection(origin, target);
             else
                 throw new GinsuException.IllegalArgument(String.format("Border [%d]!", border));
+        }
+
+        @Override
+        public double ordinateOf(Coordinate coordinate) {
+            return lower.ordinateOf(coordinate);
         }
 
         @Override
