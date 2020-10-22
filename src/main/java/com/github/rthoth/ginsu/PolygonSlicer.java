@@ -76,7 +76,7 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
                 protos = protos.plus(new ProtoPolygon(createRing()));
             }
 
-            for (var detection : shape.getDetections()) {
+            for (var detection : shape.detections) {
                 if (detection.events.isEmpty() && detection.startsInside) {
                     for (var proto : protos) {
                         if (Ginsu.inside(detection.sequence, proto.shell)) {

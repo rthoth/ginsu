@@ -7,27 +7,25 @@ import org.locationtech.jts.geom.CoordinateSequences;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
+import java.util.TreeMap;
+
 public class Detector {
 
+    private static final int OUTSIDE = -1;
+    private static final int INSIDE = 1;
+
     private final Controller controller;
-    private final Event.Factory factory;
-    private final boolean fill;
-    private Event candidate;
-    private PVector<Event> events = TreePVector.empty();
-    private Event last;
 
-    public Detector(Controller controller, Event.Factory factory, boolean fill) {
+    public Detector(Controller controller) {
         this.controller = controller;
-        this.factory = factory;
-        this.fill = fill;
     }
 
-    public static Detector create(Slice slice, Event.Factory factory, boolean fill) {
-        return new Detector(new SingleController(slice), factory, fill);
+    public static Detector create(Slice slice, Event.Factory factory) {
+        return new Detector(new SingleController(slice, new Recorder(factory, false)));
     }
 
-    public static Detection detect(Slice slice, CoordinateSequence sequence, boolean fill) {
-        return detect(new Detector(new SingleController(slice), new Event.Factory(sequence), fill), sequence);
+    public static Detection detect(Slice slice, CoordinateSequence sequence) {
+        return detect(new Detector(new SingleController(slice, new Recorder(new Event.Factory(sequence), false))), sequence);
     }
 
     private static Detection detect(Detector detector, CoordinateSequence sequence) {
@@ -40,75 +38,8 @@ public class Detector {
         return detector.end(lastIndex, sequence.getCoordinate(lastIndex), CoordinateSequences.isRing(sequence));
     }
 
-    public static Detection detect(Slice x, Slice y, CoordinateSequence sequence, boolean fill) {
-        return detect(new Detector(new XYController(x, y), new Event.Factory(sequence), fill), sequence);
-    }
-
-    private void add(Event event) {
-        last = event;
-        events = events.plus(event);
-    }
-
-    private void addCandidate(Event event) {
-        if (candidate == null) {
-            candidate = event;
-        } else {
-            throw new GinsuException.TopologyException("Already exists a candidate!");
-        }
-    }
-
-    private void addCorner(Event event) {
-        if (fill) {
-            if (candidate != null) {
-                add(candidate);
-                candidate = null;
-            } else if (last == null || last.index != event.index) {
-                add(event);
-            }
-        }
-    }
-
-    private void addIn(Event event) {
-        if (candidate == null) {
-            add(event);
-        } else {
-            if (event.index >= 0) {
-                if (candidate.index < event.index) {
-                    add(candidate);
-                    add(event);
-                }
-            } else {
-                add(candidate);
-                add(event);
-            }
-
-            candidate = null;
-        }
-    }
-
-    private void addOut(Event event) {
-        if (candidate == null) {
-            add(event);
-        } else if (candidate.index == event.index) {
-            add(candidate);
-            candidate = null;
-        } else {
-            throw new GinsuException.IllegalState("Double output!");
-        }
-    }
-
-    private void apply(Info info) {
-        final var event = info.createEvent(factory);
-        if (info.type == Type.IN) {
-            addIn(event);
-        } else if (info.type == Type.OUT) {
-            addOut(event);
-        } else if (info.type == Type.CANDIDATE) {
-            addCandidate(event);
-        } else if (info.type == Type.CORNER) {
-            addCorner(event);
-        }
-
+    public static Detection detect(Slice x, Slice y, CoordinateSequence sequence, boolean hasCorner) {
+        return detect(new Detector(new XYController(x, y, new Event.Factory(sequence), hasCorner)), sequence);
     }
 
     public void begin(Coordinate coordinate) {
@@ -122,10 +53,10 @@ public class Detector {
             final var segment = controller.compute();
 
             if (segment.origin.type != Type.UNDEFINED)
-                apply(segment.origin);
+                controller.apply(segment.origin);
 
             if (segment.target.type != Type.UNDEFINED)
-                apply(segment.target);
+                controller.apply(segment.target);
         }
 
         controller.next();
@@ -133,26 +64,7 @@ public class Detector {
 
     public Detection end(int index, Coordinate coordinate, boolean isRing) {
         check(index, coordinate);
-
-        if (candidate != null) {
-            if (isRing) {
-                if (candidate.index != index || events.get(0).index != 0)
-                    add(candidate);
-                else
-                    events = events.minus(0);
-            } else {
-                add(candidate);
-            }
-        } else if (isRing) {
-            if (!events.isEmpty()) {
-                var last = events.get(events.size() - 1);
-                if (last.type == Event.Type.CORNER && last.index == index)
-                    events = events.minus(events.size() - 1);
-            }
-        }
-
-
-        return new Detection(factory.getSequence(), events, isRing, controller.startsInside());
+        return controller.end(isRing);
     }
 
     enum Type {
@@ -168,9 +80,17 @@ public class Detector {
 
     public static abstract class Controller {
 
+        public abstract void apply(EventInfo eventInfo);
+
         public abstract void begin(Coordinate coordinate);
 
         public abstract Segment compute();
+
+        public abstract Detection end(boolean isRing);
+
+        public abstract CoordinateSequence getSequence();
+
+        protected abstract double getValue();
 
         public abstract boolean isChanged();
 
@@ -181,7 +101,18 @@ public class Detector {
         public abstract void update(int index, Coordinate coordinate);
     }
 
-    static final class Info {
+    static class CornerInfo {
+
+        final int position;
+        final Event event;
+
+        public CornerInfo(int size, Event event) {
+            position = size % 2 == 0 ? OUTSIDE : INSIDE;
+            this.event = event;
+        }
+    }
+
+    static final class EventInfo {
         Type type = Type.UNDEFINED;
 
         int index;
@@ -224,6 +155,10 @@ public class Detector {
             update(newDimension, border, false);
         }
 
+        public void update(Type newType) {
+            type = newType;
+        }
+
         void updateSide(Dimension newDimension, int border) {
             if (newDimension == Dimension.X)
                 xSide = Slice.sideOf(border);
@@ -243,8 +178,8 @@ public class Detector {
             position = next.position;
         }
 
-        public Info newInfo() {
-            var info = new Info();
+        public EventInfo newInfo() {
+            var info = new EventInfo();
             info.index = index;
             info.coordinate = coordinate;
             return info;
@@ -257,11 +192,121 @@ public class Detector {
         }
     }
 
-    static final class Segment {
-        final Info origin;
-        final Info target;
+    private static class Recorder {
 
-        Segment(Info origin, Info target) {
+        final Event.Factory factory;
+        final boolean hasCorner;
+
+        PVector<Event> events = TreePVector.empty();
+        Event candidate = null;
+        Event last = null;
+
+        Recorder(Event.Factory factory, boolean hasCorner) {
+            this.hasCorner = hasCorner;
+            this.factory = factory;
+        }
+
+        void add(Event event) {
+            last = event;
+            events = events.plus(event);
+        }
+
+        void addCandidate(Event event) {
+            if (candidate == null) {
+                candidate = event;
+            } else {
+                throw new GinsuException.TopologyException("Already exists a candidate!");
+            }
+        }
+
+        void addCorner(Event event) {
+            if (hasCorner) {
+                if (candidate != null) {
+                    add(candidate);
+                    candidate = null;
+                } else if (last == null || last.index != event.index) {
+                    add(event);
+                }
+            }
+        }
+
+        void addIn(Event event) {
+            if (candidate == null) {
+                add(event);
+            } else {
+                if (event.index >= 0) {
+                    if (candidate.index < event.index) {
+                        add(candidate);
+                        add(event);
+                    }
+                } else {
+                    add(candidate);
+                    add(event);
+                }
+
+                candidate = null;
+            }
+        }
+
+        void addOut(Event event) {
+            if (candidate == null) {
+                add(event);
+            } else if (candidate.index == event.index) {
+                add(candidate);
+                candidate = null;
+            } else {
+                throw new GinsuException.IllegalState("Double output!");
+            }
+        }
+
+        void apply(EventInfo eventInfo) {
+            final var event = eventInfo.createEvent(factory);
+            if (eventInfo.type == Type.IN) {
+                addIn(event);
+            } else if (eventInfo.type == Type.OUT) {
+                addOut(event);
+            } else if (eventInfo.type == Type.CANDIDATE) {
+                addCandidate(event);
+            } else if (eventInfo.type == Type.CORNER) {
+                addCorner(event);
+            }
+        }
+
+        PVector<Event> end(int index, boolean isRing) {
+            if (candidate != null) {
+                if (isRing) {
+                    if (candidate.index != index || events.get(0).index != 0)
+                        pushCandidate();
+                    else
+                        remove(0);
+                } else {
+                    pushCandidate();
+                }
+            } else if (isRing) {
+                if (!events.isEmpty()) {
+                    var last = events.get(events.size() - 1);
+                    if (last.type == Event.Type.CORNER && last.index == index)
+                        remove(events.size() - 1);
+                }
+            }
+
+            return events;
+        }
+
+        void pushCandidate() {
+            add(candidate);
+        }
+
+        public void remove(int index) {
+            events = events.minus(index);
+        }
+    }
+
+    static final class Segment {
+        final EventInfo origin;
+        final EventInfo target;
+
+        Segment(EventInfo origin, EventInfo target) {
             this.origin = origin;
             this.target = target;
         }
@@ -287,10 +332,17 @@ public class Detector {
 
         private final Point previous = new Point();
         private final Point current = new Point();
+        private final Recorder recorder;
         private int firstPosition;
 
-        SingleController(Slice slice) {
+        SingleController(Slice slice, Recorder recorder) {
             this.slice = slice;
+            this.recorder = recorder;
+        }
+
+        @Override
+        public void apply(EventInfo eventInfo) {
+            recorder.apply(eventInfo);
         }
 
         public Segment apply(Segment segment) {
@@ -306,7 +358,7 @@ public class Detector {
             return segment;
         }
 
-        private void apply(int product, Info origin, Info target) {
+        private void apply(int product, EventInfo origin, EventInfo target) {
             final int current = target.position, previous = origin.position;
             final int cIndex = target.index, pIndex = origin.index;
             final Coordinate cCoordinate = target.coordinate, pCoordinate = origin.coordinate;
@@ -318,8 +370,8 @@ public class Detector {
                     target.update(Type.OUT, pIndex, slice.intersection(pCoordinate, cCoordinate, current), slice.getDimension(), current);
                 }
             } else if (product == -9) {
-                origin.update(Type.IN, -1, slice.intersection(pCoordinate, cCoordinate, previous), slice.getDimension(), previous);
-                target.update(Type.OUT, -1, slice.intersection(pCoordinate, cCoordinate, current), slice.getDimension(), current);
+                origin.update(Type.IN, Event.NO_INDEX, slice.intersection(pCoordinate, cCoordinate, previous), slice.getDimension(), previous);
+                target.update(Type.OUT, Event.NO_INDEX, slice.intersection(pCoordinate, cCoordinate, current), slice.getDimension(), current);
             } else if (product == 2 || product == -2) {
                 if (current == Slice.MIDDLE) {
                     origin.update(Type.IN, slice.getDimension(), previous);
@@ -338,10 +390,13 @@ public class Detector {
                     target.update(Type.OUT, pIndex, slice.intersection(pCoordinate, cCoordinate, current), slice.getDimension(), current);
                 }
             } else if (product == 4) {
-                if (origin.type != Type.UNDEFINED)
-                    origin.update(Type.CORNER, slice.getDimension(), previous);
-                if (target.type != Type.UNDEFINED)
-                    target.update(Type.CORNER, slice.getDimension(), current);
+//                if (origin.type != Type.UNDEFINED)
+//                    origin.update(Type.CORNER, slice.getDimension(), previous);
+//                if (target.type != Type.UNDEFINED)
+//                    target.update(Type.CORNER, slice.getDimension(), current);
+
+                origin.update(Type.UNDEFINED);
+                target.update(Type.UNDEFINED);
             }
         }
 
@@ -354,6 +409,21 @@ public class Detector {
         @Override
         public Segment compute() {
             return apply(newSegment());
+        }
+
+        @Override
+        public Detection end(boolean isRing) {
+            return new Detection(getSequence(), recorder.end(current.index, isRing), isRing, startsInside(), Detection.EMPTY_CORNER_SET);
+        }
+
+        @Override
+        public CoordinateSequence getSequence() {
+            return recorder.factory.getSequence();
+        }
+
+        @Override
+        protected double getValue() {
+            return slice.getValue();
         }
 
         @Override
@@ -391,16 +461,48 @@ public class Detector {
 
         private final SingleController x;
         private final SingleController y;
+        private final boolean hasCorner;
+        private final Recorder recorder;
 
-        XYController(Slice x, Slice y) {
-            this.x = new SingleController(x);
-            this.y = new SingleController(y);
+        private SingleController xL = null;
+        private SingleController xU = null;
+        private SingleController yL = null;
+        private SingleController yU = null;
+
+        XYController(Slice x, Slice y, Event.Factory factory, boolean hasCorner) {
+            recorder = new Recorder(factory, hasCorner);
+
+            this.hasCorner = hasCorner;
+            this.x = new SingleController(x, null);
+            this.y = new SingleController(y, null);
+            if (hasCorner) {
+                xL = createController(x.getLower(), factory);
+                xU = createController(x.getUpper(), factory);
+                yL = createController(y.getLower(), factory);
+                yU = createController(y.getUpper(), factory);
+            }
+        }
+
+        @Override
+        public void apply(EventInfo eventInfo) {
+            recorder.apply(eventInfo);
         }
 
         @Override
         public void begin(Coordinate coordinate) {
             x.begin(coordinate);
             y.begin(coordinate);
+
+            if (hasCorner) {
+                begin(coordinate, xL);
+                begin(coordinate, xU);
+                begin(coordinate, yL);
+                begin(coordinate, yU);
+            }
+        }
+
+        private void begin(Coordinate coordinate, SingleController controller) {
+            if (controller != null) controller.begin(coordinate);
         }
 
         @Override
@@ -408,15 +510,113 @@ public class Detector {
             return x.isChanged() ? y.apply(x.compute()) : x.apply(y.compute());
         }
 
+        SingleController createController(Slice slice, Event.Factory factory) {
+            return slice != null ? new SingleController(slice, new Recorder(factory, false)) : null;
+        }
+
+        private Event createCorner(SingleController x, SingleController y, CornerInfo xIn, CornerInfo yIn, Event.Factory factory, Side xSide, Side ySide) {
+            if (xIn != null && yIn != null && xIn.position == INSIDE && yIn.position == INSIDE)
+                return factory.create(Event.Type.CORNER, Event.CORNER_INDEX, new Coordinate(x.getValue(), y.getValue()), Dimension.CORNER, xSide, ySide);
+
+            return null;
+        }
+
+        private Detection.CornerSet createCornerSet(boolean isRing) {
+            var xLI = populate(xL, isRing);
+            var xUI = populate(xU, isRing);
+            var yLI = populate(yL, isRing);
+            var yUI = populate(yU, isRing);
+
+            var ll = createCorner(xL, yL, higher(yLI, xL), higher(xLI, yL), recorder.factory, Side.GREATER, Side.GREATER);
+            var ul = createCorner(xU, yL, lower(yLI, xU), higher(xUI, yL), recorder.factory, Side.LESS, Side.GREATER);
+            var uu = createCorner(xU, yU, lower(yUI, xU), lower(xUI, yU), recorder.factory, Side.LESS, Side.LESS);
+            var lu = createCorner(xL, yU, higher(yUI, xL), lower(xLI, yU), recorder.factory, Side.GREATER, Side.LESS);
+
+            return Detection.CornerSet.of(ll, ul, uu, lu);
+        }
+
+        private void detect(int index, Coordinate coordinate, SingleController controller) {
+            if (controller != null) {
+                controller.update(index, coordinate);
+                if (controller.isChanged()) {
+                    var segment = controller.compute();
+                    if (segment.origin.type != Type.UNDEFINED)
+                        controller.apply(segment.origin);
+                    if (segment.target.type != Type.UNDEFINED)
+                        controller.apply(segment.target);
+                }
+
+                controller.next();
+            }
+        }
+
+        @Override
+        public Detection end(boolean isRing) {
+            var cornerSet = hasCorner ? createCornerSet(isRing) : Detection.EMPTY_CORNER_SET;
+            return new Detection(getSequence(), recorder.end(x.current.index, isRing), isRing, startsInside(), cornerSet);
+        }
+
+        @Override
+        public CoordinateSequence getSequence() {
+            return recorder.factory.getSequence();
+        }
+
+        @Override
+        protected double getValue() {
+            throw new GinsuException.Unsupported();
+        }
+
+        private CornerInfo higher(TreeMap<Double, Event> treeMap, SingleController controller) {
+            return higher(treeMap, controller, false);
+        }
+
+        private CornerInfo higher(TreeMap<Double, Event> treeMap, SingleController controller, boolean inclusive) {
+            if (controller != null && treeMap != null) {
+                var tailMap = treeMap.tailMap(controller.slice.getValue(), inclusive);
+                if (!tailMap.isEmpty())
+                    return new CornerInfo(tailMap.size(), tailMap.firstEntry().getValue());
+            }
+
+            return null;
+        }
+
         @Override
         public boolean isChanged() {
             return x.product() != 9 && y.product() != 9 && (x.isChanged() || y.isChanged());
+        }
+
+        private CornerInfo lower(TreeMap<Double, Event> treeMap, SingleController controller) {
+            return lower(treeMap, controller, false);
+        }
+
+        private CornerInfo lower(TreeMap<Double, Event> treeMap, SingleController controller, boolean inclusive) {
+            if (controller != null && treeMap != null) {
+                var headMap = treeMap.headMap(controller.slice.getValue(), inclusive);
+                if (!headMap.isEmpty())
+                    return new CornerInfo(headMap.size(), headMap.lastEntry().getValue());
+
+            }
+
+            return null;
         }
 
         @Override
         public void next() {
             x.next();
             y.next();
+        }
+
+        private TreeMap<Double, Event> populate(SingleController controller, boolean isRing) {
+            if (controller != null) {
+                var treeMap = new TreeMap<Double, Event>();
+                var dimension = controller.slice.getDimension();
+                for (var event : controller.recorder.end(x.current.index, isRing)) {
+                    treeMap.put(dimension.ordinateOf(event.getCoordinate()), event);
+                }
+                return treeMap;
+            } else {
+                return null;
+            }
         }
 
         @Override
@@ -428,6 +628,13 @@ public class Detector {
         public void update(int index, Coordinate coordinate) {
             x.update(index, coordinate);
             y.update(index, coordinate);
+
+            if (hasCorner) {
+                detect(index, coordinate, xL);
+                detect(index, coordinate, xU);
+                detect(index, coordinate, yL);
+                detect(index, coordinate, yU);
+            }
         }
     }
 }

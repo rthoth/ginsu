@@ -8,6 +8,9 @@ import java.util.Objects;
 
 public final class Event {
 
+    public static final int NO_INDEX = -1;
+    public static final int CORNER_INDEX = Integer.MIN_VALUE;
+
     public final int index;
     public final Factory factory;
     public final Type type;
@@ -55,6 +58,10 @@ public final class Event {
         return event != null && event.type != Type.CORNER;
     }
 
+    public static String toString(Coordinate coordinate) {
+        return coordinate != null ? "(" + coordinate.getX() + ", " + coordinate.getY() + ")" : "null";
+    }
+
     public Coordinate getCoordinate() {
         return coordinate != null ? coordinate : factory.getCoordinate(index);
     }
@@ -74,7 +81,7 @@ public final class Event {
         else
             prefix = "Corner";
 
-        return prefix + "(" + index + ", " + coordinate + ")";
+        return prefix + "(" + index + ", " + toString(coordinate) + ")";
     }
 
     enum Type {

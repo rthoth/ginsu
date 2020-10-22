@@ -13,7 +13,10 @@ public class Merger {
     private final PVector<Y> y;
     private final double offset;
 
-    @SuppressWarnings("unused")
+    public Merger(double[] x, double[] y) {
+        this(x, y, Ginsu.DEFAULT_OFFSET);
+    }
+
     public Merger(double[] x, double[] y, double offset) {
         this(Ginsu.map(x, v -> new X(v, offset, 0D)), Ginsu.map(y, v -> new Y(v, offset, 0D)), offset);
     }

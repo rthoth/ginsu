@@ -51,15 +51,15 @@ public class MergeGrid<T extends Geometry> {
         if (grid.width == width && grid.height == height) {
             // TODO: Parallel?
 
-            var nshapes = TreePVector.<DetectionShape>empty();
+            var shapes = TreePVector.<DetectionShape>empty();
 
             for (var xEntry : xSlices) {
                 for (var yEntry : ySlices) {
-                    nshapes = nshapes.plusAll(detect(xEntry.value, yEntry.value, grid.get(xEntry.index, yEntry.index)));
+                    shapes = shapes.plusAll(detect(xEntry.value, yEntry.value, grid.get(xEntry.index, yEntry.index)));
                 }
             }
 
-            return merger.apply(nshapes, x, y);
+            return merger.apply(shapes, x, y);
         } else {
             throw new GinsuException.IllegalArgument("Invalid grid size!");
         }
@@ -89,17 +89,13 @@ public class MergeGrid<T extends Geometry> {
 
     private DetectionShape detect(Slice x, Slice y, Shape shape) {
         final var iterator = shape.iterator();
-        final var first = Detector.detect(x, y, Ginsu.next(iterator), true);
-        final var optional = merger.preApply(first, shape);
-        if (optional.isEmpty()) {
-            var detections = TreePVector.singleton(first);
-            while (iterator.hasNext()) {
-                detections = detections.plus(Detector.detect(x, y, iterator.next(), !merger.isPolygon()));
-            }
+        final var isPolygon = merger.isPolygon();
+        var detections = TreePVector.singleton(Detector.detect(x, y, Ginsu.next(iterator), isPolygon));
 
-            return DetectionShape.of(detections);
-        } else {
-            return DetectionShape.of(optional.get());
+        while (iterator.hasNext()) {
+            detections = detections.plus(Detector.detect(x, y, iterator.next(), isPolygon));
         }
+
+        return new DetectionShape(detections, shape);
     }
 }

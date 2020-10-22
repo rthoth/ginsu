@@ -1,16 +1,12 @@
 package com.github.rthoth.ginsu;
 
 import org.locationtech.jts.algorithm.RayCrossingCounter;
-import org.locationtech.jts.geom.CoordinateSequence;
-import org.locationtech.jts.geom.Location;
+import org.locationtech.jts.geom.*;
 import org.pcollections.PSet;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -88,6 +84,10 @@ public class Ginsu {
         }
     }
 
+    public static <T> T getValue(Map.Entry<?, T> entry) {
+        return entry != null ? entry.getValue() : null;
+    }
+
     public static boolean inside(CoordinateSequence sequence, CoordinateSequence shell) {
         for (var i = 0; i < sequence.size(); i++) {
             var location = RayCrossingCounter.locatePointInRing(sequence.getCoordinate(i), shell);
@@ -119,6 +119,10 @@ public class Ginsu {
         return vector;
     }
 
+    public static Coordinate next(int index, CoordinateSequence sequence, boolean isRing) {
+        return sequence.getCoordinate((index + 1) % (isRing ? (sequence.size() - 1) : sequence.size()));
+    }
+
     public static <T> T next(Iterator<T> iterator) {
         if (iterator.hasNext())
             return iterator.next();
@@ -133,6 +137,25 @@ public class Ginsu {
                 set = set.plus(value);
 
         return set;
+    }
+
+    public static Coordinate previous(int index, CoordinateSequence sequence, boolean isRing) {
+        index--;
+
+        if (index < 0) {
+            index = isRing ? sequence.size() - 2 : sequence.size() - 1;
+        }
+
+        return sequence.getCoordinate(index);
+    }
+
+    public static MultiPolygon toMulti(Polygonal polygonal) {
+        if (polygonal instanceof MultiPolygon)
+            return (MultiPolygon) polygonal;
+        else if (polygonal instanceof Polygon)
+            return ((Polygon) polygonal).getFactory().createMultiPolygon(new Polygon[]{(Polygon) polygonal});
+
+        throw new GinsuException.IllegalArgument("Invalid geometry!");
     }
 
     public static <T> PVector<T> toVector(Iterable<T> iterable) {

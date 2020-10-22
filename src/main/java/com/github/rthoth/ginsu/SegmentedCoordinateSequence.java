@@ -31,7 +31,7 @@ public class SegmentedCoordinateSequence implements CoordinateSequence {
 
     @Override
     public CoordinateSequence copy() {
-        throw new GinsuException.Unsupported("copy");
+        return this;
     }
 
     @Override

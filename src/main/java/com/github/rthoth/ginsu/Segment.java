@@ -45,11 +45,19 @@ public abstract class Segment {
         return new Wrapper(segment, size);
     }
 
+    public abstract Segment dropFirst();
+
+    public abstract Segment dropLast();
+
     public abstract Envelope expandEnvelope(Envelope envelope);
 
     public abstract Coordinate getCoordinate(int index);
 
     public abstract void getCoordinate(int index, Coordinate coordinate);
+
+    public abstract Coordinate getFirst();
+
+    public abstract Coordinate getLast();
 
     public abstract double getOrdinate(int index, int ordinateIndex);
 
@@ -65,6 +73,28 @@ public abstract class Segment {
         }
 
         @Override
+        public Segment dropFirst() {
+            if (size > 2) {
+                return new Backward(mapIndex(1), limit, size - 1, isRing, sequence);
+            } else if (size == 2) {
+                return new PointView(mapIndex(1), sequence);
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public Segment dropLast() {
+            if (size > 2) {
+                return new Backward(mapIndex(0), limit, size - 1, isRing, sequence);
+            } else if (size == 2) {
+                return new PointView(mapIndex(0), sequence);
+            } else {
+                return null;
+            }
+        }
+
+        @Override
         protected int mapIndex(int index) {
             return index <= start ? start - index : limit - (index - start);
         }
@@ -73,6 +103,28 @@ public abstract class Segment {
     public static class Forward extends View {
         public Forward(int start, int limit, int size, boolean isRing, CoordinateSequence sequence) {
             super(start, limit, size, isRing, sequence);
+        }
+
+        @Override
+        public Segment dropFirst() {
+            if (size > 2) {
+                return new Forward(mapIndex(1), limit, size - 1, isRing, sequence);
+            } else if (size == 2) {
+                return new PointView(mapIndex(1), sequence);
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public Segment dropLast() {
+            if (size > 2) {
+                return new Forward(mapIndex(0), limit, size - 1, isRing, sequence);
+            } else if (size == 2) {
+                return new PointView(mapIndex(0), sequence);
+            } else {
+                return null;
+            }
         }
 
         @Override
@@ -88,6 +140,16 @@ public abstract class Segment {
         public Line(Coordinate start, Coordinate stop) {
             this.start = start;
             this.stop = stop;
+        }
+
+        @Override
+        public Segment dropFirst() {
+            return new Point(stop);
+        }
+
+        @Override
+        public Segment dropLast() {
+            return new Point(start);
         }
 
         @Override
@@ -113,6 +175,16 @@ public abstract class Segment {
         @Override
         public void getCoordinate(int index, Coordinate coordinate) {
             coordinate.setCoordinate(getCoordinate(index));
+        }
+
+        @Override
+        public Coordinate getFirst() {
+            return start;
+        }
+
+        @Override
+        public Coordinate getLast() {
+            return stop;
         }
 
         @Override
@@ -147,10 +219,31 @@ public abstract class Segment {
             this.point = point;
         }
 
+        private void check(int index) {
+            if (index != 0)
+                throw new GinsuException.IllegalArgument(Integer.toString(index));
+        }
+
+        @Override
+        public Segment dropFirst() {
+            return null;
+        }
+
+        @Override
+        public Segment dropLast() {
+            return null;
+        }
+
         @Override
         public Envelope expandEnvelope(Envelope envelope) {
             envelope.expandToInclude(point);
             return envelope;
+        }
+
+        @Override
+        public void getCoordinate(int index, Coordinate coordinate) {
+            check(index);
+            coordinate.setCoordinate(point);
         }
 
         @Override
@@ -160,9 +253,13 @@ public abstract class Segment {
         }
 
         @Override
-        public void getCoordinate(int index, Coordinate coordinate) {
-            check(index);
-            coordinate.setCoordinate(point);
+        public Coordinate getFirst() {
+            return point;
+        }
+
+        @Override
+        public Coordinate getLast() {
+            return point;
         }
 
         @Override
@@ -187,11 +284,6 @@ public abstract class Segment {
         public int size() {
             return 1;
         }
-
-        private void check(int index) {
-            if (index != 0)
-                throw new GinsuException.IllegalArgument(Integer.toString(index));
-        }
     }
 
     public static class PointView extends Segment {
@@ -203,10 +295,30 @@ public abstract class Segment {
             this.sequence = sequence;
         }
 
+        private void check(int index) {
+            if (index != 0)
+                throw new GinsuException.InvalidIndex(index);
+        }
+
+        @Override
+        public Segment dropFirst() {
+            return null;
+        }
+
+        @Override
+        public Segment dropLast() {
+            return null;
+        }
+
         @Override
         public Envelope expandEnvelope(Envelope envelope) {
             envelope.expandToInclude(getCoordinate(0));
             return envelope;
+        }
+
+        @Override
+        public void getCoordinate(int index, Coordinate coordinate) {
+            coordinate.setCoordinate(getCoordinate(index));
         }
 
         @Override
@@ -218,8 +330,13 @@ public abstract class Segment {
         }
 
         @Override
-        public void getCoordinate(int index, Coordinate coordinate) {
-            coordinate.setCoordinate(getCoordinate(index));
+        public Coordinate getFirst() {
+            return sequence.getCoordinate(index);
+        }
+
+        @Override
+        public Coordinate getLast() {
+            return sequence.getCoordinate(index);
         }
 
         @Override
@@ -240,11 +357,6 @@ public abstract class Segment {
         @Override
         public int size() {
             return 1;
-        }
-
-        private void check(int index) {
-            if (index != 0)
-                throw new GinsuException.InvalidIndex(index);
         }
     }
 
@@ -284,6 +396,16 @@ public abstract class Segment {
         }
 
         @Override
+        public Coordinate getFirst() {
+            return getCoordinate(0);
+        }
+
+        @Override
+        public Coordinate getLast() {
+            return getCoordinate(size - 1);
+        }
+
+        @Override
         public double getOrdinate(int index, int ordinateIndex) {
             return sequence.getOrdinate(mapIndex(index), ordinateIndex);
         }
@@ -298,6 +420,8 @@ public abstract class Segment {
             return sequence.getY(mapIndex(index));
         }
 
+        protected abstract int mapIndex(int index);
+
         public Segment point(int index) {
             return new PointView(mapIndex(index), sequence);
         }
@@ -306,8 +430,6 @@ public abstract class Segment {
         public int size() {
             return size;
         }
-
-        protected abstract int mapIndex(int index);
     }
 
     public static class Wrapper extends Segment {
@@ -317,6 +439,16 @@ public abstract class Segment {
         public Wrapper(Segment segment, int bottom) {
             this.segment = segment;
             this.bottom = bottom;
+        }
+
+        @Override
+        public Segment dropFirst() {
+            throw new GinsuException.Unsupported();
+        }
+
+        @Override
+        public Segment dropLast() {
+            throw new GinsuException.Unsupported();
         }
 
         @Override
@@ -332,6 +464,16 @@ public abstract class Segment {
         @Override
         public void getCoordinate(int index, Coordinate coordinate) {
             segment.getCoordinate(index - bottom, coordinate);
+        }
+
+        @Override
+        public Coordinate getFirst() {
+            return segment.getFirst();
+        }
+
+        @Override
+        public Coordinate getLast() {
+            return segment.getLast();
         }
 
         @Override

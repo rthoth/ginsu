@@ -5,6 +5,7 @@ import org.pcollections.TreePVector;
 
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public abstract class Grid<T> {
@@ -37,6 +38,12 @@ public abstract class Grid<T> {
         return data.get(mapToIndex(x, y));
     }
 
+    public <V, M> Grid<M> combine(Grid<V> grid, BiFunction<T, V, M> mapper) {
+        return new View<>(this, (x, y, value) -> mapper.apply(value, grid._get(x, y)));
+    }
+
+    public abstract Grid<T> copy();
+
     public Entry<Optional<T>> get(int x, int y) {
         if (x >= 0 && x < width && y >= 0 && y < height) {
             return new Entry<>(x, y, Optional.ofNullable(_get(x, y)));
@@ -46,7 +53,7 @@ public abstract class Grid<T> {
     }
 
     @SuppressWarnings("unused")
-    public Iterable<Entry<T>> iterable() {
+    public final Iterable<Entry<T>> iterable() {
         return () -> new Iterator<>() {
 
             private int ix = 0;
@@ -91,7 +98,12 @@ public abstract class Grid<T> {
     }
 
     public <M> Grid<M> view(Function<T, M> mapper) {
-        return new View<>(this, mapper);
+        return new View<>(this, (x, y, value) -> mapper.apply(value));
+    }
+
+    private interface ViewMapper<T, M> {
+
+        M apply(int x, int y, T value);
     }
 
     @SuppressWarnings("unused")
@@ -125,9 +137,9 @@ public abstract class Grid<T> {
     private static class View<T, M> extends Grid<M> {
 
         private final Grid<T> grid;
-        private final Function<T, M> mapper;
+        private final ViewMapper<T, M> mapper;
 
-        private View(Grid<T> grid, Function<T, M> mapper) {
+        private View(Grid<T> grid, ViewMapper<T, M> mapper) {
             super(grid.width, grid.height);
             this.mapper = mapper;
             this.grid = grid;
@@ -135,7 +147,13 @@ public abstract class Grid<T> {
 
         @Override
         protected M _get(int x, int y) {
-            return mapper.apply(grid._get(x, y));
+            return mapper.apply(x, y, grid._get(x, y));
+        }
+
+        @Override
+        public Grid<M> copy() {
+            var data = Ginsu.map(iterable(), entry -> entry.value);
+            return new YX<>(width, height, data);
         }
 
         @Override
@@ -151,6 +169,11 @@ public abstract class Grid<T> {
         }
 
         @Override
+        public Grid<T> copy() {
+            return new XY<>(width, height, data);
+        }
+
+        @Override
         protected int mapToIndex(int x, int y) {
             return x * height + y;
         }
@@ -160,6 +183,11 @@ public abstract class Grid<T> {
 
         public YX(int width, int height, PVector<T> data) {
             super(width, height, data);
+        }
+
+        @Override
+        public Grid<T> copy() {
+            return new YX<>(width, height, data);
         }
 
         @Override

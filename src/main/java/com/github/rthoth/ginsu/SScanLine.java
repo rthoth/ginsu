@@ -28,7 +28,7 @@ public class SScanLine {
     }
 
     public void add(DetectionShape shape) {
-        for (var detection : shape.getDetections()) {
+        for (var detection : shape.detections) {
             for (var event : detection.events.getVector()) {
                 var coordinate = event.getCoordinate();
                 var border = dimension.border(event);

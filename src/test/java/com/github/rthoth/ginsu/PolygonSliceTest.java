@@ -10,11 +10,11 @@ public class PolygonSliceTest extends AbstractTest implements DetectionUtil, Uti
     @Test
     public void i001() {
         var _slice = middle(y(-1), y(1));
-        var shell = Detector.detect(_slice, parseSequence("(-5 7, -7 5, 3 -5, 1 -7, 7 -7, 7 -1, 5 -3, -5 7)"), true);
-        var hole = Detector.detect(_slice, parseSequence("(-5 6, -6 5, 4 -5, 5 -4, -5 6)"), true);
+        var shell = Detector.detect(_slice, parseSequence("(-5 7, -7 5, 3 -5, 1 -7, 7 -7, 7 -1, 5 -3, -5 7)"));
+        var hole = Detector.detect(_slice, parseSequence("(-5 6, -6 5, 4 -5, 5 -4, -5 6)"));
 
         var slicer = new PolygonSlicer(GEOMETRY_FACTORY);
-        var slice = slicer.toGeometry(slicer.apply(DetectionShape.of(TreePVector.singleton(shell).plus(hole)), Dimension.Y, Ginsu.DEFAULT_OFFSET));
+        var slice = slicer.toGeometry(slicer.apply(new DetectionShape(TreePVector.singleton(shell).plus(hole), null), Dimension.Y, Ginsu.DEFAULT_OFFSET));
         assertThat(slice.toText())
                 .isEqualTo("MULTIPOLYGON (((-3 1, -1 -1, 0 -1, -2 1, -3 1)), ((3 -1, 1 1, 0 1, 2 -1, 3 -1)))");
     }
@@ -28,7 +28,7 @@ public class PolygonSliceTest extends AbstractTest implements DetectionUtil, Uti
 //        println(toWKT(singletonList(kX), singletonList(kY), sequence, GEOMETRY_FACTORY));
         assertThat(Ginsu.map(detection.events.getVector(), Event::toString))
                 .containsExactly(
-                        "In.X(4, (5.0, -7.0, NaN))",
+                        "In.X(4, (5.0, -7.0))",
                         "Out.X(6, null)"
                 );
     }
@@ -65,8 +65,8 @@ public class PolygonSliceTest extends AbstractTest implements DetectionUtil, Uti
         var grid = new Slicer(new double[]{-6, -1, 5}, new double[]{-7, -1, 1, 7})
                 .polygonal(polygon, Order.XY);
 
-//        println(toWKT(x(new double[]{-6, -1, 5}), y(new double[]{-7, -1, 1, 7}), polygon));
-//        println(grid.toWKT());
+        println(toWKT(x(new double[]{-6, -1, 5}), y(new double[]{-7, -1, 1, 7}), polygon));
+        println(grid.toWKT());
 
         assertThat(Ginsu.map(grid.iterable(), Grid.Entry::toString))
                 .containsExactly(

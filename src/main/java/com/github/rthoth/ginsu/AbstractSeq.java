@@ -9,11 +9,13 @@ import java.util.Optional;
 public abstract class AbstractSeq<T> {
 
     private final PVector<T> vector;
-    private PMap<T, N<T>> map = HashTreePMap.empty();
+    private final PMap<T, N<T>> map;
 
     public AbstractSeq(PVector<T> vector, boolean isClosed) {
         final var iterator = vector.iterator();
         this.vector = vector;
+
+        var map = HashTreePMap.<T, N<T>>empty();
 
         if (iterator.hasNext()) {
             final var first = new N<>(iterator.next());
@@ -37,6 +39,8 @@ public abstract class AbstractSeq<T> {
                 }
             }
         }
+
+        this.map = map;
     }
 
     public T get(int index) {

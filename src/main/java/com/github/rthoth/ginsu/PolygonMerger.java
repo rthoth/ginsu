@@ -4,10 +4,15 @@ import org.locationtech.jts.geom.*;
 import org.pcollections.*;
 
 import java.util.HashMap;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class PolygonMerger extends GeometryMerger<MultiPolygon> {
+
+    private static final int NO_DIRECTION = Integer.MAX_VALUE;
+    private static final int DOWN = -1;
+    private static final int UP = 1;
+    private static final int BOTH = 0;
 
     private final GeometryFactory factory;
     private final double offset;
@@ -15,6 +20,37 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
     public PolygonMerger(GeometryFactory factory, double offset) {
         this.factory = factory;
         this.offset = offset;
+    }
+
+    private static PSet<Maze.N> addCandidates(PSet<Maze.N> set, int direction, Maze.N lower, Maze.N higher, Maze.N previous) {
+        if ((direction == UP || direction == BOTH) && higher != null && higher != previous)
+            set = set.plus(higher);
+
+        if ((direction == DOWN || direction == BOTH) && lower != null && lower != previous)
+            set = set.plus(lower);
+
+        return set;
+    }
+
+    private static int computeDirection(Info less, Info greater) {
+        switch (less.value * greater.value) {
+            case 2:
+            case 15:
+                return UP;
+            case 5:
+            case 6:
+                return DOWN;
+            case 1:
+            case 4:
+            case 9:
+            case 10:
+            case 25:
+                return NO_DIRECTION;
+            case 3:
+                return BOTH;
+            default:
+                throw new GinsuException.Unsupported("Info product: " + (less.value * greater.value));
+        }
     }
 
     @Override
@@ -27,25 +63,34 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
         return true;
     }
 
-    @Override
-    public Optional<Shape> preApply(Detection detection, Shape shape) {
-        if (!detection.events.isEmpty()) {
-            return Optional.empty();
-        } else {
-            return detection.startsInside ? Optional.of(shape) : Optional.of(Shape.EMPTY);
+    private enum Info {
+        O(1),
+        B(2),
+        I(3),
+        E(5);
+
+        public final int value;
+
+        Info(int value) {
+            this.value = value;
+        }
+
+        public Info change() {
+            if (this == B || this == I)
+                return E;
+
+            if (this == E || this == O)
+                return B;
+
+            throw new GinsuException.IllegalState();
+        }
+
+        public Info keep() {
+            return this == B || this == I ? I : O;
         }
     }
 
-    private enum IO {
-
-        I, O;
-
-        public IO invert() {
-            return this == I ? O : I;
-        }
-    }
-
-    private static class Maze extends AbstractMaze<IO> {
+    private static class Maze extends AbstractMaze<Info> {
 
         Maze(PVector<Knife.X> x, PVector<Knife.Y> y, double offset) {
             super(x, y, offset);
@@ -55,9 +100,10 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
     private class Merger {
 
         MultiPolygon result;
-        Maze maze;
 
+        Maze maze;
         HashMap<DetectionShape, ProtoPolygon> shapeToProtoPolygon = new HashMap<>();
+
         PVector<ProtoPolygon> prototypes = TreePVector.empty();
 
         Merger(PCollection<DetectionShape> shapes, PVector<Knife.X> x, PVector<Knife.Y> y) {
@@ -66,45 +112,75 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
             var polygons = TreePVector.<Polygon>empty();
 
             for (var shape : shapes) {
-                if (shape.isOngoing()) {
+                if (shape.nonEmpty())
                     maze.add(shape);
-                } else {
-                    polygons = polygons.plus(shape.getShape().toPolygon(factory));
-                }
+                else if (Ginsu.first(shape.detections).startsInside)
+                    polygons = polygons.plus(shape.source.toPolygon(factory));
             }
 
-            maze.initialize(IO.O).forEach((current, e, hasNext) -> {
-                if (hasNext) {
-                    if (e.isSingle())
-                        return current.invert();
-                    else
-                        return e.forall(Event::isCorner) ? IO.I : current.invert();
+            maze.init(Info.O, (current, e, hasMore) -> {
+                if (e != null) {
+                    if (hasMore) {
+                        if (e.isSingle())
+                            return current.change();
+                        else if (e.xor(Event::isNonCorner))
+                            return current.change();
+                        else
+                            return current.keep();
+                    } else {
+                        return Info.E;
+                    }
                 } else {
-                    return IO.O;
+                    if (current == Info.O || current == Info.E)
+                        return Info.O;
+                    else if (current == Info.B || current == Info.I)
+                        return Info.I;
+
+                    throw new GinsuException.IllegalState();
                 }
             });
 
             for (var n : maze.unvisited()) {
-                n.visited();
-                var nonCorners = n.filter(Event::isNonCorner);
-                if (nonCorners.size() == 1) {
-                    searchProtoPolygon(Ginsu.first(nonCorners), n);
-                } else if (nonCorners.size() == 2) {
-                    searchProtoPolygon(choiceOne(nonCorners), n);
-                } else {
+                var candidates = n.filterEvent(this::filterOrigin);
+                if (candidates.size() == 1) {
+                    searchProtoPolygon(Ginsu.first(candidates), n);
+                } else if (candidates.size() == 2) {
+                    searchProtoPolygon(choiceOneFlow(candidates), n);
+                } else if (n.exist((event, info) -> info == Info.B)) {
                     searchProtoPolygon(null, n);
                 }
             }
 
-            result = factory.createMultiPolygon(Ginsu.map(prototypes, ProtoPolygon::toPolygon).toArray(Polygon[]::new));
+            var array = Ginsu.map(prototypes, ProtoPolygon::toPolygon)
+                    .plusAll(polygons).toArray(Polygon[]::new);
+
+            result = factory.createMultiPolygon(array);
         }
 
-        Maze.SingleE choiceOne(Iterable<Maze.SingleE> iterable) {
-            var iterator = iterable.iterator();
+        Maze.SingleE choiceOneFlow(PSet<Maze.SingleE> set) {
+            var iterator = set.iterator();
             var first = Ginsu.next(iterator);
             var second = Ginsu.next(iterator);
 
             return Event.compare(first.event, second.event) <= 0 ? first : second;
+        }
+
+        Maze.N choiceOneN(PSet<Maze.N> set) {
+            var iterator = set.iterator();
+            var first = Ginsu.next(iterator);
+            var second = Ginsu.next(iterator);
+            var firstFlow = searchFlow(first);
+            var secondFlow = searchFlow(second);
+
+            if (firstFlow != null && secondFlow != null) {
+                return Event.compare(firstFlow.event, secondFlow.event) <= 0 ? first : second;
+            } else if (firstFlow != null) {
+                return first;
+            } else if (secondFlow != null) {
+                return second;
+            } else {
+                return first;
+            }
         }
 
         void createProtoPolygon(Ring ring) {
@@ -134,52 +210,43 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
         }
 
         Ring extractRing(Maze.SingleE startE, final Maze.N origin) {
-            Maze.N start = origin, stop = null;
-            Maze.SingleE stopE;
-            var builder = new CSBuilder.Simplified(offset);
             final AtomicReference<PSet<DetectionShape>> used = new AtomicReference<>(HashTreePSet.empty());
+            Maze.N start = origin, stop = null;
+            var builder = new CSBuilder.Simplified(offset);
+
+            Consumer<Maze.SingleE> addDetection = singleE -> {
+                used.set(used.get().plus(singleE.shape));
+            };
 
             do {
-                start.forEachSingleE(singleE -> used.set(used.get().plus(singleE.shape)));
                 start.visited();
+                start.forEachSingle(addDetection);
 
                 if (startE != null) {
                     var isIn = Event.isIn(startE.event);
-                    stopE = isIn ? startE.next() : startE.previous();
+                    var stopE = isIn ? startE.next() : startE.previous();
 
                     builder.add(startE.event.coordinate);
-
-                    if (isIn)
-                        builder.addForward(startE.event.index, stopE.event.index, startE.detection.sequence);
-                    else
-                        builder.addBackward(startE.event.index, stopE.event.index, startE.detection.sequence);
-
+                    builder.add(isIn ?
+                            Segment.forward(startE.event.index, stopE.event.index, startE.detection.sequence)
+                            : Segment.backward(startE.event.index, stopE.event.index, startE.detection.sequence));
                     builder.add(stopE.event.coordinate);
-
                     stop = stopE.getN();
-                    stop.visited();
 
                     final var copy = stopE.event;
-                    var candidates = stop.filter(event -> event != copy && Event.isNonCorner(event));
+                    var candidates = stop.filterEvent((event, info) -> event != copy && Event.isNonCorner(event));
 
                     if (candidates.size() == 1) {
                         start = stop;
                         startE = Ginsu.first(candidates);
                     } else if (candidates.isEmpty()) {
                         start = searchNextStart(stop, stopE);
-                        candidates = start.filter(Event::isNonCorner);
-
-                        if (candidates.size() == 1) {
-                            startE = Ginsu.first(candidates);
-                        } else if (candidates.isEmpty()) {
-                            startE = null;
-                            stopE = null;
-                        } else {
-                            throw new GinsuException.TopologyException("");
-                        }
+                        startE = searchFlow(start);
+                        stop.visited();
                     } else {
-                        throw new GinsuException.TopologyException("Close to:" + stop.getCoordinate());
+                        throw new GinsuException.Unsupported();
                     }
+
                 } else {
                     builder.add(start.getCoordinate());
 
@@ -192,61 +259,53 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
                         start = searchNextStart(start);
                     }
 
-                    var candidates = start.filter(Event::isNonCorner);
-                    if (candidates.size() == 1)
-                        startE = Ginsu.first(candidates);
-                    else if (candidates.size() == 2) {
-                        startE = choiceOne(candidates);
-                    }
+                    startE = searchFlow(start);
                 }
-
             } while (start != origin);
 
             return new Ring(builder.close(), used.get());
         }
 
-        Maze.N searchNextStart(Maze.N origin) {
-            var candidate = origin.filter(Event::isCorner);
-            if (candidate.size() == 1) {
-                return Ginsu.first(candidate).next().getN();
-            } else if (candidate.size() > 1) {
-                throw new GinsuException.TopologyException("There is a connection close to: " + origin.getCoordinate());
-            } else {
-                throw new GinsuException.IllegalState();
-            }
+        boolean filterOrigin(Event event, Info info) {
+            if (info == Info.B || info == Info.E)
+                return Event.isNonCorner(event);
+            else
+                return false;
         }
 
-        Maze.N searchNextStart(Maze.N reference, final Maze.N previous) {
-            var neighbours = reference.filterNeighbour((n, e) -> {
-                if (n == previous)
-                    return false;
-                else {
-                    return e != null && (e.isSingle() || !e.forall(Event::isCorner));
-                }
-            });
-            if (neighbours.size() == 1) {
-                return Ginsu.first(neighbours);
-            } else {
-                throw new GinsuException.Unsupported();
-            }
+        Maze.SingleE searchFlow(Maze.N n) {
+            var candidates = n.filterEvent((event, info) -> Event.isNonCorner(event));
+            return candidates.size() == 1 ? Ginsu.first(candidates) : null;
         }
 
         Maze.N searchNextStart(Maze.N reference, Maze.SingleE stop) {
-            var iSet = reference.getISet();
-            PSet<Maze.N> candidates = HashTreePSet.empty();
-            var previous = stop.getN();
-            if (iSet.size() == 1) {
-                if (Ginsu.first(iSet) == IO.O) {
-                    candidates = reference.filterNeighbour((n, e) -> e == null && n != previous);
-                } else {
+            var candidates = reference.visit(Empty.<Maze.N>set(), (value, less, greater, lower, higher) ->
+                    addCandidates(value, computeDirection(less, greater), lower, higher, null));
 
-                }
-            } else {
-                candidates = reference.filterNeighbour((n, e) -> e == null && n != previous);
-            }
+            if (candidates.size() == 1)
+                return Ginsu.first(candidates);
+            else
+                throw new GinsuException.Unsupported();
+        }
+
+        Maze.N searchNextStart(Maze.N reference, Maze.N previous) {
+            var candidates = reference.<PSet<Maze.N>>visit(HashTreePSet.empty(), (set, less, greater, lower, higher) ->
+                    addCandidates(set, computeDirection(less, greater), lower, higher, previous));
+
+            if (candidates.size() == 1)
+                return Ginsu.first(candidates);
+            else
+                throw new GinsuException.IllegalState();
+        }
+
+        Maze.N searchNextStart(Maze.N origin) {
+            var candidates = origin.<PSet<Maze.N>>visit(HashTreePSet.empty(), (set, less, greater, lower, higher) ->
+                    addCandidates(set, computeDirection(less, greater), lower, higher, null));
 
             if (candidates.size() == 1) {
                 return Ginsu.first(candidates);
+            } else if (candidates.size() == 2) {
+                return choiceOneN(candidates);
             }
 
             throw new GinsuException.Unsupported();
@@ -266,18 +325,19 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
             shell = ring;
         }
 
+        void addHole(Ring ring) {
+            holes = holes.plus(ring);
+        }
+
         public Polygon toPolygon() {
             var shell = this.shell.toLinearRing();
             var holes = Ginsu.map(this.holes, Ring::toLinearRing);
             return factory.createPolygon(shell, holes.toArray(LinearRing[]::new));
         }
-
-        void addHole(Ring ring) {
-            holes = holes.plus(ring);
-        }
     }
 
     private class Ring {
+
         final CoordinateSequence sequence;
         final PSet<DetectionShape> shapes;
 

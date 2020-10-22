@@ -2,10 +2,13 @@ package com.github.rthoth.ginsu;
 
 import com.google.common.truth.Correspondence;
 import org.locationtech.jts.geom.*;
+import org.pcollections.TreePVector;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public interface Util {
 
@@ -31,6 +34,10 @@ public interface Util {
         return Correspondence.from((actual, expected) -> expected != null ? expected.test(actual) : actual == null, "Predicate!");
     }
 
+    default Envelope envelope(double xmin, double xmax, double ymin, double ymax) {
+        return new Envelope(xmin, xmax, ymin, ymax);
+    }
+
     default Envelope envelopeOf(CoordinateSequence sequence) {
         double xmin = Double.POSITIVE_INFINITY, ymin = Double.POSITIVE_INFINITY;
         double xmax = Double.NEGATIVE_INFINITY, ymax = Double.NEGATIVE_INFINITY;
@@ -50,6 +57,22 @@ public interface Util {
         return new Envelope(xmin, xmax, ymin, ymax);
     }
 
+    default File file(String filename) {
+        return new File(filename);
+    }
+
+    default <T> Grid<T> gridXY(int w, int h, List<T> list) {
+        return new Grid.XY<>(w, h, TreePVector.from(list));
+    }
+
+    default <T> Grid<T> gridYX(int w, int h, List<T> list) {
+        return new Grid.YX<>(w, h, TreePVector.from(list));
+    }
+
+    default <T> Lazy<T> lazy(Supplier<T> supplier) {
+        return new Lazy(supplier);
+    }
+
     default <T> List<T> list(T... elements) {
         return Arrays.asList(elements);
     }
@@ -64,6 +87,15 @@ public interface Util {
 
     default void println(Object object) {
         System.out.println(object);
+    }
+
+    default MultiPolygon toMultiPolygon(Geometry geometry) {
+        if (geometry instanceof MultiPolygon)
+            return (MultiPolygon) geometry;
+        if (geometry instanceof Polygon)
+            return geometry.getFactory().createMultiPolygon(new Polygon[]{(Polygon) geometry});
+
+        throw new IllegalArgumentException();
     }
 
     default String toWKT(Iterable<Knife.X> x, Iterable<Knife.Y> y, CoordinateSequence sequence, GeometryFactory factory) {

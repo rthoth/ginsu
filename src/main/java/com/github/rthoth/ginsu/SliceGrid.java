@@ -35,9 +35,9 @@ public class SliceGrid<T extends Geometry> {
         }
     }
 
-    private PVector<Detection> detect(PVector<Slice> slices, CoordinateSequence sequence, boolean fill) {
+    private PVector<Detection> detect(PVector<Slice> slices, CoordinateSequence sequence) {
         final var factory = new Event.Factory(sequence);
-        final var detectors = Ginsu.map(slices, slice -> Detector.create(slice, factory, fill));
+        final var detectors = Ginsu.map(slices, slice -> Detector.create(slice, factory));
 
         final var firstCoordinate = sequence.getCoordinate(0);
         for (var detector : detectors)
@@ -60,7 +60,7 @@ public class SliceGrid<T extends Geometry> {
         var ongoings = TreePVector.<Ongoing>empty();
         var result = new ArrayList<MultiShape>(slices.size());
 
-        for (var entry : Ginsu.zipWithIndex(detect(slices, Ginsu.next(iterator), true))) {
+        for (var entry : Ginsu.zipWithIndex(detect(slices, Ginsu.next(iterator)))) {
             var detection = entry.value;
             var optional = slicer.preApply(detection, shape);
             if (optional.isEmpty()) {
@@ -75,7 +75,7 @@ public class SliceGrid<T extends Geometry> {
             var ongoingSlices = Ginsu.map(ongoings, o -> o.slice);
 
             while (iterator.hasNext()) {
-                for (var entry : Ginsu.zipWithIndex(detect(ongoingSlices, iterator.next(), !slicer.isPolygon()))) {
+                for (var entry : Ginsu.zipWithIndex(detect(ongoingSlices, iterator.next()))) {
                     ongoings.get(entry.index).add(entry.value);
                 }
             }
@@ -158,7 +158,7 @@ public class SliceGrid<T extends Geometry> {
         }
 
         public MultiShape apply() {
-            return slicer.apply(DetectionShape.of(detections), slice.getDimension(), offset);
+            return slicer.apply(new DetectionShape(detections, shape), slice.getDimension(), offset);
         }
     }
 }

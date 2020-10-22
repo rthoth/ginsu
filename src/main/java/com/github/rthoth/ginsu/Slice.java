@@ -71,6 +71,12 @@ public abstract class Slice {
         return dimension;
     }
 
+    public abstract Slice getLower();
+
+    public abstract Slice getUpper();
+
+    public abstract double getValue();
+
     public abstract Coordinate intersection(Coordinate origin, Coordinate target, int border);
 
     public abstract double ordinateOf(Coordinate coordinate);
@@ -81,6 +87,21 @@ public abstract class Slice {
 
         private Inner() {
             super(null);
+        }
+
+        @Override
+        public Slice getLower() {
+            return null;
+        }
+
+        @Override
+        public Slice getUpper() {
+            return null;
+        }
+
+        @Override
+        public double getValue() {
+            throw new GinsuException.Unsupported();
         }
 
         @Override
@@ -106,6 +127,21 @@ public abstract class Slice {
         public Lower(K upper) {
             super(upper.dimension);
             this.upper = upper;
+        }
+
+        @Override
+        public Slice getLower() {
+            return null;
+        }
+
+        @Override
+        public Slice getUpper() {
+            return this;
+        }
+
+        @Override
+        public double getValue() {
+            return upper.value;
         }
 
         @Override
@@ -145,6 +181,21 @@ public abstract class Slice {
             super(lower.dimension);
             this.lower = lower;
             this.upper = upper;
+        }
+
+        @Override
+        public Slice getLower() {
+            return new Upper<>(lower);
+        }
+
+        @Override
+        public Slice getUpper() {
+            return new Lower<>(upper);
+        }
+
+        @Override
+        public double getValue() {
+            throw new GinsuException.Unsupported();
         }
 
         @Override
@@ -191,6 +242,21 @@ public abstract class Slice {
         public Upper(K lower) {
             super(lower.dimension);
             this.lower = lower;
+        }
+
+        @Override
+        public Slice getLower() {
+            return this;
+        }
+
+        @Override
+        public Slice getUpper() {
+            return null;
+        }
+
+        @Override
+        public double getValue() {
+            return lower.value;
         }
 
         @Override

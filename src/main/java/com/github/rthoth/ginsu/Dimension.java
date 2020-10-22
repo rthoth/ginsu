@@ -3,7 +3,13 @@ package com.github.rthoth.ginsu;
 import org.locationtech.jts.geom.Coordinate;
 
 public enum Dimension {
-    X, Y, CORNER;
+    X(1), Y(-1), CORNER(0);
+
+    public final int value;
+
+    Dimension(int value) {
+        this.value = value;
+    }
 
     public int border(Event event) {
         switch (this) {
@@ -26,6 +32,17 @@ public enum Dimension {
                 return coordinate.getX();
             default:
                 throw new GinsuException.IllegalState("Invalid dimension!");
+        }
+    }
+
+    public Dimension other() {
+        switch (this) {
+            case X:
+                return Y;
+            case Y:
+                return X;
+            default:
+                throw new GinsuException.IllegalState();
         }
     }
 
