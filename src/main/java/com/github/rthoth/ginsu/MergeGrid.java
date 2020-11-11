@@ -3,6 +3,8 @@ package com.github.rthoth.ginsu;
 import com.github.rthoth.ginsu.Ginsu.IndexEntry;
 import com.github.rthoth.ginsu.Knife.X;
 import com.github.rthoth.ginsu.Knife.Y;
+import com.github.rthoth.ginsu.detection.DetectionShape;
+import com.github.rthoth.ginsu.detection.Detector;
 import org.locationtech.jts.geom.Geometry;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
@@ -30,7 +32,7 @@ public class MergeGrid<T extends Geometry> {
         var xSlices = x.size() > 0 ? slices(x) : TreePVector.singleton(Slice.INNER);
         var ySlices = y.size() > 0 ? slices(y) : TreePVector.singleton(Slice.INNER);
 
-        this.xSlices = Ginsu.toVector(Ginsu.zipWithIndex(xSlices));
+        this.xSlices = Ginsu.zipWithIndex(xSlices);
         this.ySlices = Ginsu.zipWithIndex(ySlices);
     }
 

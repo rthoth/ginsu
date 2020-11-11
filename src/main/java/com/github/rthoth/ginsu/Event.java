@@ -84,7 +84,7 @@ public final class Event {
         return prefix + "(" + index + ", " + toString(coordinate) + ")";
     }
 
-    enum Type {
+    public enum Type {
         IN, OUT, CORNER
     }
 

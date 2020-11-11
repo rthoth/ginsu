@@ -22,7 +22,7 @@ public class Parallel {
         else {
             var slicer = pattern.slicer(executor, _a, _b);
             var aGrid = slicer.thenApplyAsync(s -> s.polygonal(_a), executor);
-            var bGrid = slicer.thenApplyAsync(s -> s.polygonal(_b), executor);
+            var bGrid = slicer.thenApplyAsync(s -> s.extrude(0.01).polygonal(_b), executor);
 
             var factory = _a.getFactory();
 

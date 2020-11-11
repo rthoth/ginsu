@@ -1,11 +1,12 @@
-package com.github.rthoth.ginsu;
+package com.github.rthoth.ginsu.detection;
 
+import com.github.rthoth.ginsu.Shape;
 import org.pcollections.PVector;
 
 public class DetectionShape {
 
-    final PVector<Detection> detections;
-    final Shape source;
+    public final PVector<Detection> detections;
+    public final Shape source;
 
     public DetectionShape(PVector<Detection> detections, Shape source) {
         this.detections = detections;

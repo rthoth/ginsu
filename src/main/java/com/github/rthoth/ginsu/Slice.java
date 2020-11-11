@@ -71,11 +71,11 @@ public abstract class Slice {
         return dimension;
     }
 
+    public abstract double getKnifeValue();
+
     public abstract Slice getLower();
 
     public abstract Slice getUpper();
-
-    public abstract double getValue();
 
     public abstract Coordinate intersection(Coordinate origin, Coordinate target, int border);
 
@@ -90,6 +90,11 @@ public abstract class Slice {
         }
 
         @Override
+        public double getKnifeValue() {
+            throw new GinsuException.Unsupported();
+        }
+
+        @Override
         public Slice getLower() {
             return null;
         }
@@ -97,11 +102,6 @@ public abstract class Slice {
         @Override
         public Slice getUpper() {
             return null;
-        }
-
-        @Override
-        public double getValue() {
-            throw new GinsuException.Unsupported();
         }
 
         @Override
@@ -130,6 +130,11 @@ public abstract class Slice {
         }
 
         @Override
+        public double getKnifeValue() {
+            return upper.value;
+        }
+
+        @Override
         public Slice getLower() {
             return null;
         }
@@ -137,11 +142,6 @@ public abstract class Slice {
         @Override
         public Slice getUpper() {
             return this;
-        }
-
-        @Override
-        public double getValue() {
-            return upper.value;
         }
 
         @Override
@@ -184,6 +184,11 @@ public abstract class Slice {
         }
 
         @Override
+        public double getKnifeValue() {
+            throw new GinsuException.Unsupported();
+        }
+
+        @Override
         public Slice getLower() {
             return new Upper<>(lower);
         }
@@ -191,11 +196,6 @@ public abstract class Slice {
         @Override
         public Slice getUpper() {
             return new Lower<>(upper);
-        }
-
-        @Override
-        public double getValue() {
-            throw new GinsuException.Unsupported();
         }
 
         @Override
@@ -245,6 +245,11 @@ public abstract class Slice {
         }
 
         @Override
+        public double getKnifeValue() {
+            return lower.value;
+        }
+
+        @Override
         public Slice getLower() {
             return this;
         }
@@ -252,11 +257,6 @@ public abstract class Slice {
         @Override
         public Slice getUpper() {
             return null;
-        }
-
-        @Override
-        public double getValue() {
-            return lower.value;
         }
 
         @Override

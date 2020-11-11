@@ -1,5 +1,6 @@
 package com.github.rthoth.ginsu;
 
+import com.github.rthoth.ginsu.detection.DetectionShape;
 import org.locationtech.jts.geom.Geometry;
 import org.pcollections.PCollection;
 import org.pcollections.PVector;

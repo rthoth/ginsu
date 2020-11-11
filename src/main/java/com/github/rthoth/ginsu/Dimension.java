@@ -59,7 +59,7 @@ public enum Dimension {
         }
     }
 
-    enum Side {
+    public enum Side {
 
         LESS, GREATER, UNDEFINED;
 

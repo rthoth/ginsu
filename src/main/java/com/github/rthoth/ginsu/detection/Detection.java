@@ -1,5 +1,8 @@
-package com.github.rthoth.ginsu;
+package com.github.rthoth.ginsu.detection;
 
+import com.github.rthoth.ginsu.AbstractSeq;
+import com.github.rthoth.ginsu.Event;
+import com.github.rthoth.ginsu.Ginsu;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequence;
 import org.pcollections.PVector;

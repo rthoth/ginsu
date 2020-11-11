@@ -1,5 +1,6 @@
 package com.github.rthoth.ginsu;
 
+import com.github.rthoth.ginsu.detection.Detector;
 import org.junit.Test;
 
 import java.util.Objects;
@@ -33,6 +34,14 @@ public class DetectionTest extends AbstractTest implements DetectionUtil {
                         "In.X(-1, (4.0, -3.0))",
                         "Out.X(-1, (1.0, 0.0))"
                 );
+    }
+
+    @Test
+    public void i003() {
+        var sequence = parseSequence("(-643.9133393949296 -583.8945609485456, -644.320987654321 -583.8945609485456, -644.320987654321 -581.498398175382, -644.3209876543209 -581.498398175382, -644.3209876543209 -583.71647723693, -644.0161560737691 -583.71647723693, -643.9133393949296 -583.8945609485456)");
+        var detection = Detector.detect(middle(y(-583.8945609485456), y(-581.498398175382)), sequence);
+        assertThat(Ginsu.map(detection.events.getVector(), Event::toString))
+                .containsExactly("A");
     }
 
     @Test

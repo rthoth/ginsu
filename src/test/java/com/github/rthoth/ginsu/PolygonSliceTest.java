@@ -1,5 +1,7 @@
 package com.github.rthoth.ginsu;
 
+import com.github.rthoth.ginsu.detection.DetectionShape;
+import com.github.rthoth.ginsu.detection.Detector;
 import org.junit.Test;
 import org.pcollections.TreePVector;
 

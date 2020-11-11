@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public abstract class Grid<T> {
 
@@ -84,14 +85,22 @@ public abstract class Grid<T> {
     protected abstract int mapToIndex(int x, int y);
 
     public String toWKT() {
+        return toWKT(t -> true);
+    }
+
+    public String toWKT(Predicate<T> predicate) {
         var iterator = iterable().iterator();
         var wkt = new StringBuilder();
         wkt.append("GEOMETRYCOLLECTION (");
+        var shouldAddComma = false;
 
         while (iterator.hasNext()) {
-            wkt.append(iterator.next().value);
-            if (iterator.hasNext())
-                wkt.append(", ");
+            var value = iterator.next().value;
+            if (predicate.test(value)) {
+                if (shouldAddComma) wkt.append(", ");
+                else shouldAddComma = true;
+                wkt.append(value);
+            }
         }
 
         return wkt.append(")").toString();

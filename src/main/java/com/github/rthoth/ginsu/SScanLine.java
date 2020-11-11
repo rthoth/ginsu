@@ -1,5 +1,8 @@
 package com.github.rthoth.ginsu;
 
+import com.github.rthoth.ginsu.detection.Detection;
+import com.github.rthoth.ginsu.detection.DetectionShape;
+
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;

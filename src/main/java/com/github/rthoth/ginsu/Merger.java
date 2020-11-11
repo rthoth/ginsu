@@ -13,6 +13,7 @@ public class Merger {
     private final PVector<Y> y;
     private final double offset;
 
+    @SuppressWarnings("unused")
     public Merger(double[] x, double[] y) {
         this(x, y, Ginsu.DEFAULT_OFFSET);
     }

@@ -1,5 +1,9 @@
 package com.github.rthoth.ginsu;
 
+import com.github.rthoth.ginsu.detection.DetectionShape;
+import com.github.rthoth.ginsu.maze.AbstractMaze;
+import com.github.rthoth.ginsu.maze.N;
+import com.github.rthoth.ginsu.maze.SingleE;
 import org.locationtech.jts.geom.*;
 import org.pcollections.*;
 
@@ -22,7 +26,7 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
         this.offset = offset;
     }
 
-    private static PSet<Maze.N> addCandidates(PSet<Maze.N> set, int direction, Maze.N lower, Maze.N higher, Maze.N previous) {
+    private static PSet<N<Info>> addCandidates(PSet<N<Info>> set, int direction, N<Info> lower, N<Info> higher, N<Info> previous) {
         if ((direction == UP || direction == BOTH) && higher != null && higher != previous)
             set = set.plus(higher);
 
@@ -157,7 +161,7 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
             result = factory.createMultiPolygon(array);
         }
 
-        Maze.SingleE choiceOneFlow(PSet<Maze.SingleE> set) {
+        SingleE<Info> choiceOneFlow(PSet<SingleE<Info>> set) {
             var iterator = set.iterator();
             var first = Ginsu.next(iterator);
             var second = Ginsu.next(iterator);
@@ -165,7 +169,7 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
             return Event.compare(first.event, second.event) <= 0 ? first : second;
         }
 
-        Maze.N choiceOneN(PSet<Maze.N> set) {
+        N<Info> choiceOneN(PSet<N<Info>> set) {
             var iterator = set.iterator();
             var first = Ginsu.next(iterator);
             var second = Ginsu.next(iterator);
@@ -209,12 +213,12 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
             }
         }
 
-        Ring extractRing(Maze.SingleE startE, final Maze.N origin) {
+        Ring extractRing(SingleE<Info> startE, final N<Info> origin) {
             final AtomicReference<PSet<DetectionShape>> used = new AtomicReference<>(HashTreePSet.empty());
-            Maze.N start = origin, stop = null;
+            N<Info> start = origin, stop = null;
             var builder = new CSBuilder.Simplified(offset);
 
-            Consumer<Maze.SingleE> addDetection = singleE -> {
+            Consumer<SingleE<Info>> addDetection = singleE -> {
                 used.set(used.get().plus(singleE.shape));
             };
 
@@ -231,7 +235,7 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
                             Segment.forward(startE.event.index, stopE.event.index, startE.detection.sequence)
                             : Segment.backward(startE.event.index, stopE.event.index, startE.detection.sequence));
                     builder.add(stopE.event.coordinate);
-                    stop = stopE.getN();
+                    stop = stopE.n;
 
                     final var copy = stopE.event;
                     var candidates = stop.filterEvent((event, info) -> event != copy && Event.isNonCorner(event));
@@ -273,13 +277,13 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
                 return false;
         }
 
-        Maze.SingleE searchFlow(Maze.N n) {
+        SingleE<Info> searchFlow(N<Info> n) {
             var candidates = n.filterEvent((event, info) -> Event.isNonCorner(event));
             return candidates.size() == 1 ? Ginsu.first(candidates) : null;
         }
 
-        Maze.N searchNextStart(Maze.N reference, Maze.SingleE stop) {
-            var candidates = reference.visit(Empty.<Maze.N>set(), (value, less, greater, lower, higher) ->
+        N<Info> searchNextStart(N<Info> reference, SingleE<Info> stop) {
+            var candidates = reference.visit(Empty.<N<Info>>set(), (value, less, greater, lower, higher) ->
                     addCandidates(value, computeDirection(less, greater), lower, higher, null));
 
             if (candidates.size() == 1)
@@ -288,8 +292,8 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
                 throw new GinsuException.Unsupported();
         }
 
-        Maze.N searchNextStart(Maze.N reference, Maze.N previous) {
-            var candidates = reference.<PSet<Maze.N>>visit(HashTreePSet.empty(), (set, less, greater, lower, higher) ->
+        N<Info> searchNextStart(N<Info> reference, N<Info> previous) {
+            var candidates = reference.visit(Empty.<N<Info>>set(), (set, less, greater, lower, higher) ->
                     addCandidates(set, computeDirection(less, greater), lower, higher, previous));
 
             if (candidates.size() == 1)
@@ -298,8 +302,8 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
                 throw new GinsuException.IllegalState();
         }
 
-        Maze.N searchNextStart(Maze.N origin) {
-            var candidates = origin.<PSet<Maze.N>>visit(HashTreePSet.empty(), (set, less, greater, lower, higher) ->
+        N<Info> searchNextStart(N<Info> origin) {
+            var candidates = origin.visit(Empty.<N<Info>>set(), (set, less, greater, lower, higher) ->
                     addCandidates(set, computeDirection(less, greater), lower, higher, null));
 
             if (candidates.size() == 1) {
@@ -311,7 +315,7 @@ public class PolygonMerger extends GeometryMerger<MultiPolygon> {
             throw new GinsuException.Unsupported();
         }
 
-        void searchProtoPolygon(Maze.SingleE start, final Maze.N origin) {
+        void searchProtoPolygon(SingleE<Info> start, final N<Info> origin) {
             createProtoPolygon(extractRing(start, origin));
         }
     }

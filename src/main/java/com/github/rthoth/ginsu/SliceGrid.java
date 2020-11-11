@@ -1,5 +1,8 @@
 package com.github.rthoth.ginsu;
 
+import com.github.rthoth.ginsu.detection.Detection;
+import com.github.rthoth.ginsu.detection.DetectionShape;
+import com.github.rthoth.ginsu.detection.Detector;
 import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.CoordinateSequences;
 import org.locationtech.jts.geom.Geometry;

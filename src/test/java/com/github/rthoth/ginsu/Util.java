@@ -58,7 +58,7 @@ public interface Util {
     }
 
     default File file(String filename) {
-        return new File(filename);
+        return new File(filename.replace('/', File.separatorChar));
     }
 
     default <T> Grid<T> gridXY(int w, int h, List<T> list) {
@@ -94,6 +94,8 @@ public interface Util {
             return (MultiPolygon) geometry;
         if (geometry instanceof Polygon)
             return geometry.getFactory().createMultiPolygon(new Polygon[]{(Polygon) geometry});
+        else if (geometry instanceof GeometryCollection && geometry.isEmpty())
+            return geometry.getFactory().createMultiPolygon();
 
         throw new IllegalArgumentException();
     }
