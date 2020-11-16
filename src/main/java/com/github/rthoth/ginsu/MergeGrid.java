@@ -13,8 +13,8 @@ import java.util.Optional;
 
 public class MergeGrid<T extends Geometry> {
 
-    private final Iterable<IndexEntry<Slice>> xSlices;
-    private final Iterable<IndexEntry<Slice>> ySlices;
+    private final Iterable<IndexEntry<Slice<X>>> xSlices;
+    private final Iterable<IndexEntry<Slice<Y>>> ySlices;
 
     private final GeometryMerger<T> merger;
     private final int width;
@@ -29,14 +29,14 @@ public class MergeGrid<T extends Geometry> {
         this.x = x;
         this.y = y;
 
-        var xSlices = x.size() > 0 ? slices(x) : TreePVector.singleton(Slice.INNER);
-        var ySlices = y.size() > 0 ? slices(y) : TreePVector.singleton(Slice.INNER);
+        var xSlices = x.size() > 0 ? slices(x) : TreePVector.singleton(Slice.<X>inner());
+        var ySlices = y.size() > 0 ? slices(y) : TreePVector.singleton(Slice.<Y>inner());
 
         this.xSlices = Ginsu.zipWithIndex(xSlices);
         this.ySlices = Ginsu.zipWithIndex(ySlices);
     }
 
-    private static <K extends Knife<K>> PVector<Slice> slices(Iterable<K> iterable) {
+    private static <K extends Knife<K>> PVector<Slice<K>> slices(Iterable<K> iterable) {
         var iterator = iterable.iterator();
         var previous = Ginsu.next(iterator);
         var result = TreePVector.singleton(Slice.lower(previous));
@@ -67,7 +67,7 @@ public class MergeGrid<T extends Geometry> {
         }
     }
 
-    private PVector<DetectionShape> detect(Slice x, Slice y, Grid.Entry<Optional<MultiShape>> entry) {
+    private PVector<DetectionShape> detect(Slice<X> x, Slice<Y> y, Grid.Entry<Optional<MultiShape>> entry) {
         if (entry.value.isPresent()) {
             final var multishape = entry.value.get();
             if (multishape.nonEmpty()) {
@@ -80,7 +80,7 @@ public class MergeGrid<T extends Geometry> {
         }
     }
 
-    private PVector<DetectionShape> detect(Slice x, Slice y, MultiShape multishape) {
+    private PVector<DetectionShape> detect(Slice<X> x, Slice<Y> y, MultiShape multishape) {
         var result = TreePVector.<DetectionShape>empty();
         for (final var shape : multishape) {
             result = result.plus(detect(x, y, shape));
@@ -89,7 +89,7 @@ public class MergeGrid<T extends Geometry> {
         return result;
     }
 
-    private DetectionShape detect(Slice x, Slice y, Shape shape) {
+    private DetectionShape detect(Slice<X> x, Slice<Y> y, Shape shape) {
         final var iterator = shape.iterator();
         final var isPolygon = merger.isPolygon();
         var detections = TreePVector.singleton(Detector.detect(x, y, Ginsu.next(iterator), isPolygon));

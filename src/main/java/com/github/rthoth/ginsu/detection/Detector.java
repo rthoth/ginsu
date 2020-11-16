@@ -1,6 +1,9 @@
 package com.github.rthoth.ginsu.detection;
 
 import com.github.rthoth.ginsu.Event;
+import com.github.rthoth.ginsu.Knife;
+import com.github.rthoth.ginsu.Knife.X;
+import com.github.rthoth.ginsu.Knife.Y;
 import com.github.rthoth.ginsu.Slice;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequence;
@@ -14,12 +17,12 @@ public class Detector {
         this.controller = controller;
     }
 
-    public static Detector create(Slice slice, Event.Factory factory) {
-        return new Detector(new SingleController(slice, new Recorder(factory, false)));
+    public static <K extends Knife<K>> Detector create(Slice<K> slice, Event.Factory factory) {
+        return new Detector(new Controller1D<>(slice, new Recorder(factory, false)));
     }
 
-    public static Detection detect(Slice slice, CoordinateSequence sequence) {
-        return detect(new Detector(new SingleController(slice, new Recorder(new Event.Factory(sequence), false))), sequence);
+    public static <K extends Knife<K>> Detection detect(Slice<K> slice, CoordinateSequence sequence) {
+        return detect(new Detector(new Controller1D<>(slice, new Recorder(new Event.Factory(sequence), false))), sequence);
     }
 
     public static Detection detect(Detector detector, CoordinateSequence sequence) {
@@ -32,8 +35,8 @@ public class Detector {
         return detector.end(lastIndex, sequence.getCoordinate(lastIndex), CoordinateSequences.isRing(sequence));
     }
 
-    public static Detection detect(Slice x, Slice y, CoordinateSequence sequence, boolean hasCorner) {
-        return detect(new Detector(new XYController(x, y, new Event.Factory(sequence), hasCorner)), sequence);
+    public static Detection detect(Slice<X> x, Slice<Y> y, CoordinateSequence sequence, boolean hasCorner) {
+        return detect(new Detector(new Controller2D(x, y, new Event.Factory(sequence), hasCorner)), sequence);
     }
 
     public void begin(Coordinate coordinate) {

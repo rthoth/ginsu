@@ -127,7 +127,7 @@ public class Lane<I> {
     }
 
     Comparator<Q> comparator() {
-        return (q1, q2) -> Ginsu.compare(knife.ordinateOf(q1.coordinate), knife.offset, knife.ordinateOf(q2.coordinate));
+        return (q1, q2) -> Ginsu.compare(knife.dimension.positionalOf(q1.coordinate), knife.offset, knife.dimension.positionalOf(q2.coordinate));
     }
 
     public Dimension getDimension() {

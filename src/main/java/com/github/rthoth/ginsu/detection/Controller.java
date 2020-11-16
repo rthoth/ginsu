@@ -5,7 +5,7 @@ import org.locationtech.jts.geom.CoordinateSequence;
 
 public abstract class Controller {
 
-    public abstract void apply(EventInfo eventInfo);
+    public abstract void apply(ProtoEvent protoEvent);
 
     public abstract void begin(Coordinate coordinate);
 
@@ -13,11 +13,7 @@ public abstract class Controller {
 
     public abstract Detection end(boolean isRing);
 
-    protected abstract Recorder getRecorder();
-
     public abstract CoordinateSequence getSequence();
-
-    protected abstract double getKnifeValue();
 
     public abstract boolean isChanged();
 

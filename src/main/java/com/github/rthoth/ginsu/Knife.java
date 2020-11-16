@@ -28,8 +28,6 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
 
     public abstract Coordinate intersection(Coordinate origin, Coordinate target);
 
-    public abstract double ordinateOf(Coordinate coordinate);
-
     public abstract int positionOf(Coordinate coordinate);
 
     public static class X extends Knife<X> {
@@ -76,11 +74,6 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
             final var yt = target.getY();
 
             return new Coordinate(value, ((yt - yo) * (value - xo)) / (xt - xo) + yo);
-        }
-
-        @Override
-        public double ordinateOf(Coordinate coordinate) {
-            return coordinate.getY();
         }
 
         @Override
@@ -137,11 +130,6 @@ public abstract class Knife<K extends Knife<?>> implements Comparable<K> {
             final var xt = target.getX();
 
             return new Coordinate(((xt - xo) * (value - yo)) / (yt - yo) + xo, value);
-        }
-
-        @Override
-        public double ordinateOf(Coordinate coordinate) {
-            return coordinate.getX();
         }
 
         @Override

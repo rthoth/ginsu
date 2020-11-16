@@ -1,5 +1,7 @@
 package com.github.rthoth.ginsu;
 
+import com.github.rthoth.ginsu.Knife.X;
+import com.github.rthoth.ginsu.Knife.Y;
 import com.github.rthoth.ginsu.detection.Detection;
 import com.github.rthoth.ginsu.detection.DetectionShape;
 import com.github.rthoth.ginsu.detection.Detector;
@@ -13,12 +15,12 @@ import java.util.ArrayList;
 
 public class SliceGrid<T extends Geometry> {
 
-    protected final PVector<Slice> xSlices;
-    protected final PVector<Slice> ySlices;
+    protected final PVector<Slice<X>> xSlices;
+    protected final PVector<Slice<Y>> ySlices;
     protected final GeometrySlicer<T> slicer;
     protected final double offset;
 
-    public SliceGrid(PVector<Knife.X> x, PVector<Knife.Y> y, double offset, GeometrySlicer<T> slicer) {
+    public SliceGrid(PVector<X> x, PVector<Y> y, double offset, GeometrySlicer<T> slicer) {
         xSlices = Slice.from(x);
         ySlices = Slice.from(y);
         this.slicer = slicer;
@@ -38,7 +40,7 @@ public class SliceGrid<T extends Geometry> {
         }
     }
 
-    private PVector<Detection> detect(PVector<Slice> slices, CoordinateSequence sequence) {
+    private <K extends Knife<K>> PVector<Detection> detect(PVector<Slice<K>> slices, CoordinateSequence sequence) {
         final var factory = new Event.Factory(sequence);
         final var detectors = Ginsu.map(slices, slice -> Detector.create(slice, factory));
 
@@ -58,16 +60,16 @@ public class SliceGrid<T extends Geometry> {
         return Ginsu.map(detectors, detector -> detector.end(lastIndex, lastCoordinate, isRing));
     }
 
-    private PVector<MultiShape> slice(PVector<Slice> slices, Shape shape) {
+    private <K extends Knife<K>> PVector<MultiShape> slice(PVector<Slice<K>> slices, Shape shape) {
         final var iterator = shape.iterator();
-        var ongoings = TreePVector.<Ongoing>empty();
+        var ongoings = TreePVector.<Ongoing<K>>empty();
         var result = new ArrayList<MultiShape>(slices.size());
 
         for (var entry : Ginsu.zipWithIndex(detect(slices, Ginsu.next(iterator)))) {
             var detection = entry.value;
             var optional = slicer.preApply(detection, shape);
             if (optional.isEmpty()) {
-                ongoings = ongoings.plus(new Ongoing(entry.index, detection, slices.get(entry.index), shape));
+                ongoings = ongoings.plus(new Ongoing<>(entry.index, detection, slices.get(entry.index), shape));
                 result.add(null);
             } else {
                 result.add(MultiShape.of(optional.get()));
@@ -91,7 +93,7 @@ public class SliceGrid<T extends Geometry> {
         return TreePVector.from(result);
     }
 
-    private PVector<T> slice(PVector<Slice> _1, PVector<Slice> _2, MultiShape multiShape) {
+    private <A extends Knife<A>, B extends Knife<B>> PVector<T> slice(PVector<Slice<A>> _1, PVector<Slice<B>> _2, MultiShape multiShape) {
         var data = TreePVector.<T>empty();
         if (!_1.isEmpty() && !_2.isEmpty()) {
             for (var _1Cell : slice(_1, multiShape)) {
@@ -114,7 +116,7 @@ public class SliceGrid<T extends Geometry> {
         return data;
     }
 
-    private PVector<MultiShape> slice(PVector<Slice> slices, MultiShape multishape) {
+    private <K extends Knife<K>> PVector<MultiShape> slice(PVector<Slice<K>> slices, MultiShape multishape) {
         if (!slices.isEmpty()) {
             if (multishape.nonEmpty()) {
                 var multishapes = TreePVector.<PVector<MultiShape>>empty();
@@ -132,23 +134,23 @@ public class SliceGrid<T extends Geometry> {
     }
 
     private Grid<T> xy(MultiShape multishape) {
-        return new Grid.XY<>(xSlices.size(), ySlices.size(), slice(xSlices, ySlices, multishape));
+        return new Grid.YX<>(xSlices.size(), ySlices.size(), slice(xSlices, ySlices, multishape));
     }
 
     private Grid<T> yx(MultiShape multishape) {
-        return new Grid.YX<>(xSlices.size(), ySlices.size(), slice(ySlices, xSlices, multishape));
+        return new Grid.XY<>(xSlices.size(), ySlices.size(), slice(ySlices, xSlices, multishape));
     }
 
-    private class Ongoing {
+    private class Ongoing<K> {
 
         final int index;
         final Detection detection;
-        final Slice slice;
+        final Slice<K> slice;
         final Shape shape;
 
         private PVector<Detection> detections;
 
-        public Ongoing(int index, Detection detection, Slice slice, Shape shape) {
+        public Ongoing(int index, Detection detection, Slice<K> slice, Shape shape) {
             this.index = index;
             this.detection = detection;
             this.slice = slice;

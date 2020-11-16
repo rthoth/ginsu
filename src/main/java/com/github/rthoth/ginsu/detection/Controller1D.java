@@ -3,26 +3,27 @@ package com.github.rthoth.ginsu.detection;
 import com.github.rthoth.ginsu.Dimension;
 import com.github.rthoth.ginsu.Event;
 import com.github.rthoth.ginsu.Slice;
-import com.github.rthoth.ginsu.detection.EventInfo.Type;
+import com.github.rthoth.ginsu.detection.ProtoEvent.Type;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequence;
+import org.pcollections.PVector;
 
-public final class SingleController extends Controller {
+public final class Controller1D<K> extends Controller {
 
-    private final Slice slice;
-    private final CoordinateInfo previous = new CoordinateInfo();
-    private final CoordinateInfo current = new CoordinateInfo();
+    private final Slice<K> slice;
+    private final CoordinateStatus previous = new CoordinateStatus();
+    private final CoordinateStatus current = new CoordinateStatus();
     private final Recorder recorder;
     private int firstPosition;
 
-    SingleController(Slice slice, Recorder recorder) {
+    Controller1D(Slice<K> slice, Recorder recorder) {
         this.slice = slice;
         this.recorder = recorder;
     }
 
     @Override
-    public void apply(EventInfo eventInfo) {
-        recorder.apply(eventInfo);
+    public void apply(ProtoEvent protoEvent) {
+        recorder.apply(protoEvent);
     }
 
     public Segment apply(Segment segment) {
@@ -38,7 +39,7 @@ public final class SingleController extends Controller {
         return segment;
     }
 
-    private void apply(int product, EventInfo origin, EventInfo target) {
+    private void apply(int product, ProtoEvent origin, ProtoEvent target) {
         final int current = target.position, previous = origin.position;
         final int cIndex = target.index, pIndex = origin.index;
         final Coordinate cCoordinate = target.coordinate, pCoordinate = origin.coordinate;
@@ -99,7 +100,11 @@ public final class SingleController extends Controller {
 
     @Override
     public Detection end(boolean isRing) {
-        return new Detection(getSequence(), recorder.end(current.index, isRing), isRing, startsInside(), Detection.EMPTY_CORNER_SET);
+        return new Detection(getSequence(), endRecorder(isRing), isRing, startsInside(), Detection.EMPTY_CORNER_SET);
+    }
+
+    protected PVector<Event> endRecorder(boolean isRing) {
+        return recorder.end(current.index, isRing);
     }
 
     public Dimension getDimension() {
@@ -110,19 +115,21 @@ public final class SingleController extends Controller {
         return current.index;
     }
 
-    @Override
-    protected double getKnifeValue() {
-        return slice.getKnifeValue();
+    public double getLower() {
+        return slice.getLower();
     }
 
-    @Override
-    protected Recorder getRecorder() {
-        return recorder;
+    public double getOffset() {
+        return slice.getOffset();
     }
 
     @Override
     public CoordinateSequence getSequence() {
         return recorder.factory.getSequence();
+    }
+
+    public double getUpper() {
+        return slice.getUpper();
     }
 
     @Override
@@ -131,7 +138,7 @@ public final class SingleController extends Controller {
     }
 
     public Segment newSegment() {
-        return new Segment(previous.newInfo(), current.newInfo());
+        return new Segment(previous.newProtoEvent(), current.newProtoEvent());
     }
 
     @Override
@@ -146,6 +153,11 @@ public final class SingleController extends Controller {
     @Override
     public boolean startsInside() {
         return firstPosition == Slice.MIDDLE;
+    }
+
+    @Override
+    public String toString() {
+        return "Controller1D(" + slice + ")";
     }
 
     @Override

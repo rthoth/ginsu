@@ -62,11 +62,11 @@ public interface Util {
     }
 
     default <T> Grid<T> gridXY(int w, int h, List<T> list) {
-        return new Grid.XY<>(w, h, TreePVector.from(list));
+        return new Grid.YX<>(w, h, TreePVector.from(list));
     }
 
     default <T> Grid<T> gridYX(int w, int h, List<T> list) {
-        return new Grid.YX<>(w, h, TreePVector.from(list));
+        return new Grid.XY<>(w, h, TreePVector.from(list));
     }
 
     default <T> Lazy<T> lazy(Supplier<T> supplier) {

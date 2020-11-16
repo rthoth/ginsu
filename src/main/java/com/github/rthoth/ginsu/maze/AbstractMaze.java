@@ -1,7 +1,7 @@
 package com.github.rthoth.ginsu.maze;
 
 import com.github.rthoth.ginsu.*;
-import com.github.rthoth.ginsu.Dimension.Side;
+import com.github.rthoth.ginsu.Event.Side;
 import com.github.rthoth.ginsu.detection.DetectionShape;
 import org.locationtech.jts.algorithm.Orientation;
 import org.locationtech.jts.geom.Coordinate;
@@ -107,8 +107,8 @@ public abstract class AbstractMaze<I> {
     }
 
     private DoubleE<I> newDoubleE(SingleE<I> _1, SingleE<I> _2, Dimension other) {
-        var _1s = other.sideOf(_1.event);
-        var _2s = other.sideOf(_2.event);
+        var _1s = _1.event.getSide(other);
+        var _2s = _2.event.getSide(other);
 
         if (_1s != _2s && _1s != Side.UNDEFINED && _2s != Side.UNDEFINED) {
             if (_1s == Side.LESS) {
@@ -120,13 +120,13 @@ public abstract class AbstractMaze<I> {
             var p2 = _1.detection.getNextInsideCoordinate(_1.event);
             var p1 = _1.event.getCoordinate();
             var q = _2.detection.getNextInsideCoordinate(_2.event);
-            var dimension = other.other();
+            var dimension = other.complement();
             var orientation = Orientation.index(p1, p2, q) * dimension.value;
 
             if (orientation == Orientation.COLLINEAR)
                 throw new GinsuException.TopologyException("It is impossible merge events close to: " + p1);
 
-            _1s = dimension.sideOf(_1.event);
+            _1s = _1.event.getSide(dimension);
             if (_1s == Side.LESS) {
                 return orientation == Orientation.CLOCKWISE ? new DoubleE<>(_1, _2) : new DoubleE<>(_2, _1);
             } else {
@@ -151,7 +151,7 @@ public abstract class AbstractMaze<I> {
 
             if (event.xSide == Side.LESS)
                 n.setXL(checkAndApply(n.getXL(), e, Dimension.Y));
-            else if (event.xSide == Side.GREATER)
+            else if (event.xSide == Side.GREAT)
                 n.setXG(checkAndApply(n.getXG(), e, Dimension.Y));
             else
                 throw new GinsuException.TopologyException("Invalid xSide: " + event);
@@ -163,7 +163,7 @@ public abstract class AbstractMaze<I> {
 
             if (event.ySide == Side.LESS)
                 n.setYL(checkAndApply(n.getYL(), e, Dimension.X));
-            else if (event.ySide == Side.GREATER)
+            else if (event.ySide == Side.GREAT)
                 n.setYG(checkAndApply(n.getYG(), e, Dimension.X));
             else
                 throw new GinsuException.TopologyException("Invalid ySide: " + event);

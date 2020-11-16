@@ -1,6 +1,5 @@
 package com.github.rthoth.ginsu;
 
-import com.github.rthoth.ginsu.Dimension.Side;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequence;
 
@@ -9,18 +8,18 @@ import java.util.Objects;
 public final class Event {
 
     public static final int NO_INDEX = -1;
-    public static final int CORNER_INDEX = Integer.MIN_VALUE;
+    public static final int CORNER_INDEX = -2;
 
     public final int index;
-    public final Factory factory;
+    public final CoordinateSequence sequence;
     public final Type type;
     public final Coordinate coordinate;
     public final Dimension dimension;
     public final Side xSide;
     public final Side ySide;
 
-    private Event(Type type, Factory factory, int index, Coordinate coordinate, Dimension dimension, Side xSide, Side ySide) {
-        this.factory = factory;
+    private Event(Type type, CoordinateSequence sequence, int index, Coordinate coordinate, Dimension dimension, Side xSide, Side ySide) {
+        this.sequence = sequence;
         this.type = type;
         this.index = index;
         this.coordinate = coordinate;
@@ -31,18 +30,9 @@ public final class Event {
 
     public static int compare(Event e1, Event e2) {
         if (e1.type != e2.type) {
-            if (e1.type == Type.IN || e2.type == Type.CORNER)
-                return -1;
-
-            if (e2.type == Type.IN || e1.type == Type.CORNER)
-                return 1;
-
-            return e1.type == Type.OUT ? -1 : 1;
+            return e1.type == Type.IN ? -1 : 1;
         } else {
-            if (e1.type == Type.IN || e1.type == Type.CORNER)
-                return Integer.compare(e1.index, e2.index);
-
-            return -Integer.compare(e1.index, e2.index);
+            return e1.type == Type.IN ? Integer.compare(e1.index, e2.index) : -Integer.compare(e1.index, e2.index);
         }
     }
 
@@ -62,30 +52,63 @@ public final class Event {
         return coordinate != null ? "(" + coordinate.getX() + ", " + coordinate.getY() + ")" : "null";
     }
 
+    public int getBorder(Dimension dimension) {
+        return getSide(dimension).border;
+    }
+
     public Coordinate getCoordinate() {
-        return coordinate != null ? coordinate : factory.getCoordinate(index);
+        return coordinate != null ? coordinate : sequence.getCoordinate(index);
     }
 
     public CoordinateSequence getSequence() {
-        return factory.sequence;
+        return sequence;
+    }
+
+    public Side getSide(Dimension dimension) {
+        if (dimension == Dimension.X)
+            return xSide;
+        if (dimension == Dimension.Y)
+            return ySide;
+
+        throw new GinsuException.IllegalArgument("Invalid dimension!");
+    }
+
+    public double positional(Dimension dimension) {
+        if (dimension == Dimension.X)
+            return getCoordinate().getY();
+        if (dimension == Dimension.Y)
+            return getCoordinate().getX();
+
+        throw new GinsuException.IllegalArgument("Invalid dimension [" + dimension + "]!");
     }
 
     @Override
     public String toString() {
-        String prefix;
+        if (type != Type.CORNER) {
+            return type.name + "." + dimension + "(" + index + ", " + toString(coordinate) + ")";
+        } else {
+            return "Corner(" + index + ", " + toString(coordinate) + ")";
+        }
+    }
 
-        if (type == Type.IN)
-            prefix = "In." + dimension.toString();
-        else if (type == Type.OUT)
-            prefix = "Out." + dimension.toString();
-        else
-            prefix = "Corner";
+    public enum Side {
+        LESS(Slice.UPPER_BORDER), GREAT(Slice.LOWER_BORDER), UNDEFINED(0);
 
-        return prefix + "(" + index + ", " + toString(coordinate) + ")";
+        public final int border;
+
+        Side(int border) {
+            this.border = border;
+        }
     }
 
     public enum Type {
-        IN, OUT, CORNER
+        IN("In"), OUT("Out"), CORNER("Corner");
+
+        public final String name;
+
+        Type(String name) {
+            this.name = name;
+        }
     }
 
     public static class Factory {
@@ -97,12 +120,16 @@ public final class Event {
         }
 
         public Event create(Type type, int index, Coordinate coordinate, Dimension dimension, Side xSide, Side ySide) {
-            Objects.requireNonNull(type);
-            Objects.requireNonNull(dimension);
-            Objects.requireNonNull(xSide);
-            Objects.requireNonNull(ySide);
 
-            return new Event(type, this, index, coordinate, dimension, xSide, ySide);
+            if (index < 0 && index != NO_INDEX && index != CORNER_INDEX)
+                throw new GinsuException.InvalidIndex(index);
+
+            Objects.requireNonNull(type, "A type is required!");
+            Objects.requireNonNull(dimension, "A dimension is required!");
+            Objects.requireNonNull(xSide, "xSide doesn't be null!");
+            Objects.requireNonNull(ySide, "ySide doesn't be null!");
+
+            return new Event(type, sequence, index, coordinate, dimension, xSide, ySide);
         }
 
         public Coordinate getCoordinate(int index) {

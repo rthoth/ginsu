@@ -72,15 +72,15 @@ class Recorder {
         }
     }
 
-    void apply(EventInfo eventInfo) {
-        final var event = eventInfo.createEvent(factory);
-        if (eventInfo.type == EventInfo.Type.IN) {
+    void apply(ProtoEvent protoEvent) {
+        final var event = protoEvent.createEvent(factory);
+        if (protoEvent.type == ProtoEvent.Type.IN) {
             addIn(event);
-        } else if (eventInfo.type == EventInfo.Type.OUT) {
+        } else if (protoEvent.type == ProtoEvent.Type.OUT) {
             addOut(event);
-        } else if (eventInfo.type == EventInfo.Type.CANDIDATE) {
+        } else if (protoEvent.type == ProtoEvent.Type.CANDIDATE) {
             addCandidate(event);
-        } else if (eventInfo.type == EventInfo.Type.CORNER) {
+        } else if (protoEvent.type == ProtoEvent.Type.CORNER) {
             addCorner(event);
         }
     }

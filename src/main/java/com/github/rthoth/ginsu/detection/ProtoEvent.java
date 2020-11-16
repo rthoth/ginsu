@@ -5,7 +5,7 @@ import com.github.rthoth.ginsu.Event;
 import com.github.rthoth.ginsu.Slice;
 import org.locationtech.jts.geom.Coordinate;
 
-final class EventInfo {
+final class ProtoEvent {
 
     Type type = Type.UNDEFINED;
 
@@ -14,8 +14,8 @@ final class EventInfo {
     Coordinate coordinate;
 
     Dimension dimension;
-    Dimension.Side xSide = Dimension.Side.UNDEFINED;
-    Dimension.Side ySide = Dimension.Side.UNDEFINED;
+    Event.Side xSide = Event.Side.UNDEFINED;
+    Event.Side ySide = Event.Side.UNDEFINED;
 
     int position;
 

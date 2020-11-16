@@ -162,7 +162,7 @@ public abstract class Grid<T> {
         @Override
         public Grid<M> copy() {
             var data = Ginsu.map(iterable(), entry -> entry.value);
-            return new YX<>(width, height, data);
+            return new XY<>(width, height, data);
         }
 
         @Override
@@ -184,7 +184,7 @@ public abstract class Grid<T> {
 
         @Override
         protected int mapToIndex(int x, int y) {
-            return x * height + y;
+            return y * width + x;
         }
     }
 
@@ -201,7 +201,7 @@ public abstract class Grid<T> {
 
         @Override
         protected int mapToIndex(int x, int y) {
-            return y * width + x;
+            return x * height + y;
         }
     }
 }

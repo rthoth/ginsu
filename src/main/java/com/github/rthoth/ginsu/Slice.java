@@ -4,7 +4,10 @@ import org.locationtech.jts.geom.Coordinate;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-public abstract class Slice {
+@SuppressWarnings("unused")
+public abstract class Slice<K> {
+
+    public static final Slice<Knife<?>> INNER = new Inner();
 
     public static final int LOWER = -3;
     public static final int LOWER_BORDER = -2;
@@ -12,16 +15,15 @@ public abstract class Slice {
     public static final int UPPER_BORDER = 2;
     public static final int UPPER = 3;
 
-    public static final Slice INNER = new Inner();
 
-    private final Dimension dimension;
+    protected final Dimension dimension;
 
     protected Slice(Dimension dimension) {
         this.dimension = dimension;
     }
 
-    public static <K extends Knife<K>> PVector<Slice> from(Iterable<K> knives) {
-        var result = TreePVector.<Slice>empty();
+    public static <K extends Knife<K>> PVector<Slice<K>> from(Iterable<K> knives) {
+        var result = TreePVector.<Slice<K>>empty();
         final var iterator = knives.iterator();
         if (iterator.hasNext()) {
             var previous = Ginsu.next(iterator);
@@ -39,30 +41,35 @@ public abstract class Slice {
         return result;
     }
 
-    public static <K extends Knife<K>> Slice lower(K upper) {
+    @SuppressWarnings("unchecked")
+    public static <K extends Knife<?>> Slice<K> inner() {
+        return (Slice<K>) INNER;
+    }
+
+    public static <K extends Knife<K>> Slice<K> lower(K upper) {
         return new Lower<>(upper);
     }
 
-    public static <K extends Knife<K>> Slice middle(K lower, K upper) {
+    public static <K extends Knife<K>> Slice<K> middle(K lower, K upper) {
         return new Middle<>(lower, upper);
     }
 
-    public static Dimension.Side sideOf(int border) {
+    public static Event.Side sideOf(int border) {
         switch (border) {
             case LOWER:
             case LOWER_BORDER:
-                return Dimension.Side.GREATER;
+                return Event.Side.GREAT;
 
             case UPPER:
             case UPPER_BORDER:
-                return Dimension.Side.LESS;
+                return Event.Side.LESS;
 
             default:
                 throw new GinsuException.IllegalArgument("Invalid border:" + border);
         }
     }
 
-    public static <K extends Knife<K>> Slice upper(K lower) {
+    public static <K extends Knife<K>> Slice<K> upper(K lower) {
         return new Upper<>(lower);
     }
 
@@ -73,17 +80,19 @@ public abstract class Slice {
 
     public abstract double getKnifeValue();
 
-    public abstract Slice getLower();
+    public abstract double getLower();
 
-    public abstract Slice getUpper();
+    public abstract double getOffset();
+
+    public abstract double getUpper();
 
     public abstract Coordinate intersection(Coordinate origin, Coordinate target, int border);
 
-    public abstract double ordinateOf(Coordinate coordinate);
+//    public abstract double ordinateOf(Coordinate coordinate);
 
     public abstract int positionOf(Coordinate coordinate);
 
-    private static class Inner extends Slice {
+    private static class Inner extends Slice<Knife<?>> {
 
         private Inner() {
             super(null);
@@ -95,22 +104,22 @@ public abstract class Slice {
         }
 
         @Override
-        public Slice getLower() {
-            return null;
+        public double getLower() {
+            return Double.NEGATIVE_INFINITY;
         }
 
         @Override
-        public Slice getUpper() {
-            return null;
+        public double getOffset() {
+            return 0;
+        }
+
+        @Override
+        public double getUpper() {
+            return Double.POSITIVE_INFINITY;
         }
 
         @Override
         public Coordinate intersection(Coordinate origin, Coordinate target, int border) {
-            throw new GinsuException.Unsupported();
-        }
-
-        @Override
-        public double ordinateOf(Coordinate coordinate) {
             throw new GinsuException.Unsupported();
         }
 
@@ -120,7 +129,7 @@ public abstract class Slice {
         }
     }
 
-    public static class Lower<K extends Knife<K>> extends Slice {
+    public static class Lower<K extends Knife<K>> extends Slice<K> {
 
         private final K upper;
 
@@ -135,13 +144,18 @@ public abstract class Slice {
         }
 
         @Override
-        public Slice getLower() {
-            return null;
+        public double getLower() {
+            return Double.NEGATIVE_INFINITY;
         }
 
         @Override
-        public Slice getUpper() {
-            return this;
+        public double getOffset() {
+            return upper.offset;
+        }
+
+        @Override
+        public double getUpper() {
+            return upper.value;
         }
 
         @Override
@@ -150,11 +164,6 @@ public abstract class Slice {
                 return upper.intersection(origin, target);
             else
                 throw new GinsuException.IllegalArgument(String.format("Border [%d]", border));
-        }
-
-        @Override
-        public double ordinateOf(Coordinate coordinate) {
-            return upper.ordinateOf(coordinate);
         }
 
         @Override
@@ -170,9 +179,14 @@ public abstract class Slice {
                     return UPPER_BORDER;
             }
         }
+
+        @Override
+        public String toString() {
+            return "Lower[" + upper + "]";
+        }
     }
 
-    public static class Middle<K extends Knife<K>> extends Slice {
+    public static class Middle<K extends Knife<K>> extends Slice<K> {
 
         private final K lower;
         private final K upper;
@@ -189,13 +203,18 @@ public abstract class Slice {
         }
 
         @Override
-        public Slice getLower() {
-            return new Upper<>(lower);
+        public double getLower() {
+            return lower.value;
         }
 
         @Override
-        public Slice getUpper() {
-            return new Lower<>(upper);
+        public double getOffset() {
+            return lower.offset;
+        }
+
+        @Override
+        public double getUpper() {
+            return upper.value;
         }
 
         @Override
@@ -206,11 +225,6 @@ public abstract class Slice {
                 return lower.intersection(origin, target);
             else
                 throw new GinsuException.IllegalArgument(String.format("Border [%d]!", border));
-        }
-
-        @Override
-        public double ordinateOf(Coordinate coordinate) {
-            return lower.ordinateOf(coordinate);
         }
 
         @Override
@@ -233,9 +247,14 @@ public abstract class Slice {
                     return LOWER_BORDER;
             }
         }
+
+        @Override
+        public String toString() {
+            return "Middle[" + lower + ", " + upper + "]";
+        }
     }
 
-    public static class Upper<K extends Knife<K>> extends Slice {
+    public static class Upper<K extends Knife<K>> extends Slice<K> {
 
         private final K lower;
 
@@ -250,13 +269,18 @@ public abstract class Slice {
         }
 
         @Override
-        public Slice getLower() {
-            return this;
+        public double getLower() {
+            return lower.value;
         }
 
         @Override
-        public Slice getUpper() {
-            return null;
+        public double getOffset() {
+            return lower.offset;
+        }
+
+        @Override
+        public double getUpper() {
+            return Double.POSITIVE_INFINITY;
         }
 
         @Override
@@ -265,11 +289,6 @@ public abstract class Slice {
                 return lower.intersection(origin, target);
             else
                 throw new GinsuException.IllegalArgument(String.format("Border [%d]!", border));
-        }
-
-        @Override
-        public double ordinateOf(Coordinate coordinate) {
-            return lower.ordinateOf(coordinate);
         }
 
         @Override
@@ -284,6 +303,11 @@ public abstract class Slice {
                 default:
                     return LOWER_BORDER;
             }
+        }
+
+        @Override
+        public String toString() {
+            return "Upper[" + lower + "]";
         }
     }
 }

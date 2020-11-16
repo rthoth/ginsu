@@ -96,7 +96,7 @@ public class DetectionTest extends AbstractTest implements DetectionUtil {
         var slice2 = upper(y(4));
 
         var detection = Detector.detect(slice1, slice2, sequence, true);
-//        System.out.println(toWKT(singletonList(x(-4)), singletonList(y(4)), sequence, GEOMETRY_FACTORY));
+        println(toWKT(x(new double[]{-4}), y(new double[]{4}), sequence, GEOMETRY_FACTORY));
         assertThat(Ginsu.map(detection.events.getVector(), Event::toString))
                 .containsExactly(
                         "In.X(1, (-4.0, 6.0))",
@@ -105,7 +105,7 @@ public class DetectionTest extends AbstractTest implements DetectionUtil {
                         "Out.X(6, (-4.0, 5.0))"
                 );
 
-        var d2 = Detector.detect(slice2, slice1, sequence, true);
+        var d2 = Detector.detect(slice1, slice2, sequence, true);
         assertThat(Ginsu.map(d2.events.getVector(), Event::toString))
                 .containsExactlyElementsIn(Ginsu.map(detection.events.getVector(), Event::toString));
     }
@@ -202,29 +202,34 @@ public class DetectionTest extends AbstractTest implements DetectionUtil {
         assertThat(Ginsu.map(detection.cornerSet.iterable(), Objects::toString))
                 .containsExactly(
                         "null",
-                        "Corner(-2147483648, (2.0, -2.0))",
-                        "Corner(-2147483648, (2.0, 2.0))",
+                        "Corner(-2, (2.0, -2.0))",
+                        "Corner(-2, (2.0, 2.0))",
                         "null"
                 );
     }
 
     @Test
     public void t14() {
-        var detection = Detector.detect(middle(x(-2), x(2)), middle(y(-2), y(2)), parseSequence("(2 2, 2 -2, -2 -2, -2 2, 2 2)"), true);
+        var sequence = parseSequence("(2 2, 2 -2, -2 -2, -2 2, 2 2)");
+        var detection = Detector.detect(middle(x(-2), x(2)), middle(y(-2), y(2)), sequence, true);
+        println(toWKT(x(new double[]{-2, 2}), y(new double[]{-2, 2}), sequence, GEOMETRY_FACTORY));
         assertThat(Ginsu.map(detection.events.getVector(), Event::toString))
                 .isEmpty();
         assertThat(Ginsu.map(detection.cornerSet.iterable(), Objects::toString))
                 .containsExactly(
-                        "Corner(-2147483648, (-2.0, -2.0))",
-                        "Corner(-2147483648, (2.0, -2.0))",
-                        "Corner(-2147483648, (2.0, 2.0))",
-                        "Corner(-2147483648, (-2.0, 2.0))"
+                        "Corner(-2, (-2.0, -2.0))",
+                        "Corner(-2, (2.0, -2.0))",
+                        "Corner(-2, (2.0, 2.0))",
+                        "Corner(-2, (-2.0, 2.0))"
                 );
     }
 
     @Test
     public void t15() {
-        var detection = Detector.detect(middle(x(4), x(8)), upper(y(10)), parseSequence("(8 10, 8 11, 4 11, 4 10, 8 10)"), true);
+        var sequence = parseSequence("(8 10, 8 11, 4 11, 4 10, 8 10)");
+        var detection = Detector.detect(middle(x(4), x(8)), upper(y(10)), sequence, true);
+        println(toWKT(x(new double[]{4, 8}), y(new double[]{10}), sequence, GEOMETRY_FACTORY));
+
         assertThat(Ginsu.map(detection.events.getVector(), Event::toString))
                 .containsExactly(
                         "In.X(1, null)",
@@ -232,8 +237,8 @@ public class DetectionTest extends AbstractTest implements DetectionUtil {
                 );
         assertThat(Ginsu.map(detection.cornerSet.iterable(), Objects::toString))
                 .containsExactly(
-                        "Corner(-2147483648, (4.0, 10.0))",
-                        "Corner(-2147483648, (8.0, 10.0))",
+                        "Corner(-2, (4.0, 10.0))",
+                        "Corner(-2, (8.0, 10.0))",
                         "null",
                         "null"
                 );
@@ -246,10 +251,10 @@ public class DetectionTest extends AbstractTest implements DetectionUtil {
                 .isEmpty();
         assertThat(Ginsu.map(detection.cornerSet.iterable(), Objects::toString))
                 .containsExactly(
-                        "Corner(-2147483648, (4.0, 8.0))",
-                        "Corner(-2147483648, (8.0, 8.0))",
-                        "Corner(-2147483648, (8.0, 10.0))",
-                        "Corner(-2147483648, (4.0, 10.0))"
+                        "Corner(-2, (4.0, 8.0))",
+                        "Corner(-2, (8.0, 8.0))",
+                        "Corner(-2, (8.0, 10.0))",
+                        "Corner(-2, (4.0, 10.0))"
                 );
     }
 }

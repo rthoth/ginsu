@@ -3,10 +3,10 @@ package com.github.rthoth.ginsu.detection;
 import com.github.rthoth.ginsu.Slice;
 
 final class Segment {
-    final EventInfo origin;
-    final EventInfo target;
+    final ProtoEvent origin;
+    final ProtoEvent target;
 
-    Segment(EventInfo origin, EventInfo target) {
+    Segment(ProtoEvent origin, ProtoEvent target) {
         this.origin = origin;
         this.target = target;
     }
@@ -20,7 +20,7 @@ final class Segment {
         target.update(slice);
     }
 
-    public void update(EventInfo.Type type) {
+    public void update(ProtoEvent.Type type) {
         origin.type = type;
         target.type = type;
     }

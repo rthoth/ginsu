@@ -34,9 +34,9 @@ public class SScanLine {
         for (var detection : shape.detections) {
             for (var event : detection.events.getVector()) {
                 var coordinate = event.getCoordinate();
-                var border = dimension.border(event);
+                var border = event.getBorder(dimension);
 
-                var e = new E(dimension.ordinateOf(coordinate), border, event, detection, shape);
+                var e = new E(dimension.positionalOf(coordinate), border, event, detection, shape);
                 if (border == Slice.LOWER_BORDER)
                     lowerBorder.put(e.ordinate, e);
 
