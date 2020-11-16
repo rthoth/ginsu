@@ -9,9 +9,9 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Slice Scan Line
+ * Scan Line
  */
-public class SScanLine {
+public class ScanLine {
 
     private final Dimension dimension;
 
@@ -21,7 +21,7 @@ public class SScanLine {
     private final HashMap<Event, E> eventToE = new HashMap<>();
 
 
-    public SScanLine(Dimension dimension, final double offset) {
+    public ScanLine(Dimension dimension, final double offset) {
 
         Comparator<Double> comparator = (v1, v2) -> Ginsu.compare(v1, offset, v2);
         lowerBorder = new TreeMap<>(comparator);

@@ -63,12 +63,12 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
         static final int DOWN = -1;
 
         MultiShape result;
-        SScanLine scanLine;
+        ScanLine scanLine;
         int direction;
-        SScanLine.E origin;
+        ScanLine.E origin;
 
         public Slicer(DetectionShape shape, Dimension dimension, double offset) {
-            scanLine = new SScanLine(dimension, offset);
+            scanLine = new ScanLine(dimension, offset);
             scanLine.add(shape);
 
             var protos = TreePVector.<ProtoPolygon>empty();
@@ -96,7 +96,7 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
             var start = origin;
             var builder = new CSBuilder();
 
-            SScanLine.E stop;
+            ScanLine.E stop;
 
             do {
                 var stopEvent = Event.isIn(start.event)
@@ -140,7 +140,7 @@ public class PolygonSlicer extends GeometrySlicer<MultiPolygon> {
             }
         }
 
-        private SScanLine.E searchStart(SScanLine.E stop, boolean close) {
+        private ScanLine.E searchStart(ScanLine.E stop, boolean close) {
             if (direction == UP)
                 return close ? scanLine.lower(stop, true) : scanLine.higher(stop, true);
             else
