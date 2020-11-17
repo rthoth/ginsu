@@ -75,7 +75,7 @@ public class CSBuilder {
     }
 
     /**
-     * previous -> pivot -> new Coordinate
+     * previous - pivot - new Coordinate
      */
     public static class Simplified {
 
