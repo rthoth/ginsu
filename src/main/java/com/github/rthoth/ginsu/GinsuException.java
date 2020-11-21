@@ -10,6 +10,10 @@ public abstract class GinsuException extends RuntimeException {
 
     }
 
+    public GinsuException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
     public static class IllegalArgument extends GinsuException {
         public IllegalArgument(String message) {
             super(message);
@@ -23,6 +27,10 @@ public abstract class GinsuException extends RuntimeException {
         }
 
         public IllegalState() {
+        }
+
+        public IllegalState(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 

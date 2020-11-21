@@ -29,7 +29,7 @@ public abstract class Grid<T> {
         }
     }
 
-    private Grid(int width, int height) {
+    protected Grid(int width, int height) {
         this.width = width;
         this.height = height;
         data = TreePVector.empty();
@@ -51,6 +51,14 @@ public abstract class Grid<T> {
         } else {
             throw new GinsuException.IllegalArgument(x + ", " + y);
         }
+    }
+
+    public int getHeight() {
+        return height;
+    }
+
+    public int getWidth() {
+        return width;
     }
 
     @SuppressWarnings("unused")
@@ -161,13 +169,12 @@ public abstract class Grid<T> {
 
         @Override
         public Grid<M> copy() {
-            var data = Ginsu.map(iterable(), entry -> entry.value);
-            return new XY<>(width, height, data);
+            return new XY<>(width, height, Ginsu.map(iterable(), entry -> entry.value));
         }
 
         @Override
         protected int mapToIndex(int x, int y) {
-            return grid.mapToIndex(x, y);
+            throw new GinsuException.Unsupported();
         }
     }
 
@@ -179,7 +186,7 @@ public abstract class Grid<T> {
 
         @Override
         public Grid<T> copy() {
-            return new XY<>(width, height, data);
+            return this;
         }
 
         @Override
@@ -196,7 +203,7 @@ public abstract class Grid<T> {
 
         @Override
         public Grid<T> copy() {
-            return new YX<>(width, height, data);
+            return this;
         }
 
         @Override
