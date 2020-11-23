@@ -5,8 +5,7 @@ import org.locationtech.jts.geom.*;
 import org.pcollections.TreePVector;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -98,6 +97,24 @@ public interface Util {
             return geometry.getFactory().createMultiPolygon();
 
         throw new IllegalArgumentException();
+    }
+
+    default <G extends Geometry> MultiPolygon toMultiPolygon(Collection<G> geometries) {
+        final var polygons = new ArrayList<Polygon>(geometries.size());
+        for (var geometry : geometries) {
+            if (geometry instanceof Polygon) {
+                polygons.add((Polygon) geometry);
+            } else if (geometry instanceof MultiPolygon) {
+                var iterator = new GeometryCollectionIterator(geometry);
+                while (iterator.hasNext()) {
+                    polygons.add((Polygon) iterator.next());
+                }
+            } else {
+                throw new GinsuException.IllegalArgument(Objects.toString(geometry));
+            }
+        }
+
+        return AbstractTest.GEOMETRY_FACTORY.createMultiPolygon(polygons.toArray(Polygon[]::new));
     }
 
     default String toWKT(Iterable<Knife.X> x, Iterable<Knife.Y> y, CoordinateSequence sequence, GeometryFactory factory) {

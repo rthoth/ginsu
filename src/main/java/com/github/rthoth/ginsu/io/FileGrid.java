@@ -10,74 +10,81 @@ import org.locationtech.jts.io.WKBReader;
 import org.locationtech.jts.io.WKBWriter;
 import org.pcollections.HashTreePMap;
 import org.pcollections.PMap;
+import org.pcollections.PVector;
+import org.pcollections.TreePVector;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 
 public class FileGrid<G extends Geometry> extends Grid<G> {
 
-    //    private final ReentrantLock lock = new ReentrantLock();
-    private final PMap<Key, ReentrantLock> locks;
+    public static final Executor NOOB_EXECUTOR = Runnable::run;
     private final File directory;
-    private final int outputDimension;
-    private final boolean includeSRID;
-    private final GeometryFactory factory;
+    private final Supplier<WKBReader> wkbReader;
 
-    public FileGrid(int width, int height, File directory, GeometryFactory factory, int outputDimension, boolean includeSRID) {
+    public FileGrid(int width, int height, File directory, Supplier<WKBReader> wkbReader) {
         super(width, height);
         this.directory = directory;
-        this.outputDimension = outputDimension;
-        this.includeSRID = includeSRID;
-        this.factory = factory;
-        var locks = HashTreePMap.<Key, ReentrantLock>empty();
-        for (var x = 0; x < width; x++) {
-            for (var y = 0; y < height; y++) {
-                locks = locks.plus(new Key(x, y), new ReentrantLock());
-            }
-        }
-        this.locks = locks;
+        this.wkbReader = wkbReader;
     }
 
-    public FileGrid(int width, int height, File directory, GeometryFactory factory) {
-        this(width, height, directory, factory, 2, true);
+    private static String cellName(int x, int y, String extension) {
+        return x + "-" + y + "." + extension;
+    }
+
+    private static String cellName(int x, int y) {
+        return x + "-" + y;
+    }
+
+    private static FileInputStream openToRead(File directory, int x, int y, String extension) {
+        try {
+            return new FileInputStream(new File(directory, cellName(x, y, extension)));
+        } catch (Exception e) {
+            throw new GinsuException.IllegalState("It's impossible to open [" + x + "," + y + "]!", e);
+        }
+    }
+
+    private static FileInputStream openToRead(File directory, int x, int y) {
+        try {
+            return new FileInputStream(new File(directory, cellName(x, y)));
+        } catch (Exception e) {
+            throw new GinsuException.IllegalState("It's impossible to open [" + x + "," + y + "]!", e);
+        }
+    }
+
+    private static FileOutputStream openToWrite(File directory, int x, int y, String extension, boolean append) {
+        try {
+            return new FileOutputStream(new File(directory, cellName(x, y, extension)), append);
+        } catch (FileNotFoundException e) {
+            throw new GinsuException.IllegalState("It's impossible to open [" + x + ", " + y + "]!", e);
+        }
+    }
+
+    private static FileOutputStream openToWrite(File directory, int x, int y, boolean append) {
+        try {
+            return new FileOutputStream(new File(directory, cellName(x, y)), append);
+        } catch (Exception e) {
+            throw new GinsuException.IllegalState("It's impossible to open [" + x + ", " + y + "]!", e);
+        }
     }
 
     @SuppressWarnings("unchecked")
     @Override
     protected G _get(int x, int y) {
-        acquire(x, y);
-        try {
-            try (var input = new FileInputStream(new File(directory, x + File.separator + y))) {
-                return (G) newReader().read(new InputStreamInStream(input));
-            } catch (Exception e) {
-                throw new GinsuException.IllegalState(String.format("It's impossible to read (%d, %d) geometry!", x, y), e);
-            }
-        } finally {
-            release(x, y);
+        try (var input = openToRead(directory, x, y)) {
+            return (G) wkbReader.get().read(new InputStreamInStream(input));
+        } catch (Exception e) {
+            throw new GinsuException.IllegalState("It's impossible to read cell [" + x + ", " + y + "]!", e);
         }
-    }
-
-    private void acquire(int x, int y) {
-        locks.get(new Key(x, y)).lock();
     }
 
     @Override
     public Grid<G> copy() {
-        throw new GinsuException.Unsupported();
-    }
-
-    @SuppressWarnings("UnusedReturnValue")
-    public FileGrid<G> generate(Generator<G> generator) {
-        for (var x = 0; x < width; x++) {
-            for (var y = 0; y < height; y++) {
-                try {
-                    write(generator.generate(x, y), x, y, true);
-                } catch (Exception exception) {
-                    throw new GinsuException.IllegalState(String.format("It's impossible to create (%d,%d) geometry!", x, y), exception);
-                }
-            }
-        }
-
         return this;
     }
 
@@ -86,76 +93,150 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
         throw new GinsuException.Unsupported();
     }
 
-    private WKBReader newReader() {
-        return new WKBReader(factory);
-    }
+    public interface Calculator<I, G> {
 
-    private WKBWriter newWriter() {
-        return new WKBWriter(outputDimension, includeSRID);
-    }
-
-    private void release(int x, int y) {
-        locks.get(new Key(x, y)).unlock();
-    }
-
-    public FileGrid<G> update(int x, int y, G geometry) {
-        if (x >= 0 && y >= 0 && x < width && y < height) {
-            write(geometry, x, y, true);
-            return this;
-        } else {
-            throw new GinsuException.IllegalArgument("");
-        }
-    }
-
-    public <T extends G> void updateWith(Grid<T> source) {
-        if (source.getWidth() == width && source.getHeight() == height) {
-            for (var e : source.iterable()) {
-                write(e.value, e.x, e.y, true);
-            }
-        } else {
-            throw new GinsuException.IllegalArgument("Different grids size!");
-        }
-    }
-
-    public <T> void updateWith(Grid<T> source, Combiner<G, T> combiner) {
-        if (source.getWidth() == width && source.getHeight() == height) {
-            for (var e : source.iterable()) {
-                write(combiner.combine(e.x, e.y, _get(e.x, e.y), e.value), e.x, e.y, false);
-            }
-        } else {
-            throw new GinsuException.IllegalArgument("Different grids size!");
-        }
-    }
-
-    private void write(Geometry geometry, int x, int y, boolean mkdir) {
-        acquire(x, y);
-        try {
-            final var file = new File(directory, (x + File.separator + y));
-            try (var output = new FileOutputStream(file)) {
-                newWriter().write(geometry, new OutputStreamOutStream(output));
-                output.flush();
-            } catch (FileNotFoundException e) {
-                if (mkdir && file.getParentFile().mkdirs()) {
-                    write(geometry, x, y, false);
-                } else {
-                    throw new GinsuException.IllegalState("Impossible write!", e);
-                }
-            } catch (IOException e) {
-                throw new GinsuException.IllegalState("Unexpected!", e);
-            }
-        } finally {
-            release(x, y);
-        }
-    }
-
-    public interface Combiner<G, T> {
-
-        G combine(int x, int y, G my, T its);
+        G calculate(int x, int y, Collection<I> values);
     }
 
     public interface Generator<G> {
-
         G generate(int x, int y);
+    }
+
+    public static class Builder<I extends Geometry> {
+
+        public static final String INPUT_EXTENSION = "input";
+        private final int width;
+        private final int height;
+        private final File directory;
+        private final Supplier<WKBReader> wkbReader;
+        private final Supplier<WKBWriter> wkbWriter;
+
+        private final PMap<Key, ReentrantLock> locks;
+
+        public Builder(int width, int height, File directory, GeometryFactory factory) {
+            this(width, height, directory, factory, 2, true);
+        }
+
+        public Builder(int width, int height, File directory, GeometryFactory factory, int outputDimension, boolean includeSRID) {
+            assert width > 0 : "Invalid width!";
+            assert height > 0 : "Invalid height!";
+            //noinspection ResultOfMethodCallIgnored
+            directory.mkdirs();
+
+            this.width = width;
+            this.height = height;
+            this.directory = directory;
+            var locks = HashTreePMap.<Key, ReentrantLock>empty();
+            for (var x = 0; x < width; x++) {
+                for (var y = 0; y < height; y++) {
+                    locks = locks.plus(new Key(x, y), new ReentrantLock());
+                }
+            }
+
+            wkbReader = () -> new WKBReader(factory);
+            wkbWriter = () -> new WKBWriter(outputDimension, includeSRID);
+
+            this.locks = locks;
+        }
+
+        public Builder<I> add(Generator<I> generator) {
+            for (var x = 0; x < width; x++) {
+                for (var y = 0; y < height; y++) {
+                    add(x, y, generator.generate(x, y));
+                }
+            }
+            return this;
+        }
+
+        public Builder<I> add(Grid<I> grid) {
+            if (grid.getWidth() == width && grid.getHeight() == height) {
+                for (var entry : grid.iterable()) {
+                    add(entry.x, entry.y, entry.value);
+                }
+            } else {
+                throw new GinsuException.IllegalArgument("Invalid grid size!");
+            }
+
+            return this;
+        }
+
+        private void add(int x, int y, I value) {
+            lock(x, y);
+            try {
+                try (var output = openToWrite(directory, x, y, INPUT_EXTENSION, true)) {
+                    wkbWriter.get().write(value, new OutputStreamOutStream(output));
+                    output.flush();
+                } catch (IOException e) {
+                    throw new GinsuException.IllegalState("It's impossible to close [" + x + ", " + y + "]!");
+                }
+            } finally {
+                unlock(x, y);
+            }
+        }
+
+        public <G extends Geometry> FileGrid<G> build(String id, Calculator<I, G> calculator) {
+            return build(id, calculator, NOOB_EXECUTOR);
+        }
+
+        public <G extends Geometry> FileGrid<G> build(String id, Calculator<I, G> calculator, Executor executor) {
+            final var outputDirectory = new File(directory, id);
+            //noinspection ResultOfMethodCallIgnored
+            outputDirectory.mkdirs();
+
+            final var completeables = new ArrayList<>(width * height);
+
+            for (var x = 0; x < width; x++) {
+                for (var y = 0; y < height; y++) {
+                    final var completeable = new CompletableFuture<Void>();
+                    completeable.completeAsync(supplier(outputDirectory, x, y, calculator), executor);
+                    completeables.add(completeable);
+                }
+            }
+
+            try {
+                //noinspection SuspiciousToArrayCall
+                CompletableFuture.allOf(completeables.toArray(CompletableFuture[]::new))
+                        .join();
+
+                return new FileGrid<>(width, height, outputDirectory, wkbReader);
+            } catch (Exception e) {
+                throw new GinsuException.IllegalState("It's impossible to build grid [" + id + "]!", e);
+            }
+        }
+
+        private void lock(int x, int y) {
+            locks.get(new Key(x, y)).lock();
+        }
+
+
+        private <G extends Geometry> Supplier<Void> supplier(File outputDirectory, int x, int y, Calculator<I, G> calculator) {
+            return () -> {
+                PVector<I> values = TreePVector.empty();
+
+                try (var input = openToRead(directory, x, y, INPUT_EXTENSION)) {
+                    final var wkbReader = this.wkbReader.get();
+
+                    while (input.available() > 0) {
+                        //noinspection unchecked
+                        values = values.plus((I) wkbReader.read(new InputStreamInStream(input)));
+                    }
+                } catch (Exception e) {
+                    throw new GinsuException.IllegalState("It's impossible to read grid-cell input [" + x + ", " + y + "]!", e);
+                }
+
+                try (var output = openToWrite(outputDirectory, x, y, false)) {
+                    wkbWriter.get().write(calculator.calculate(x, y, values), new OutputStreamOutStream(output));
+                } catch (Exception e) {
+                    throw new GinsuException.IllegalState("It's impossible create grid-cell [" + x + "," + y + "]!", e);
+                }
+
+                return null;
+            };
+        }
+
+        private void unlock(int x, int y) {
+            locks.get(new Key(x, y)).unlock();
+        }
     }
 
     private static class Key {
@@ -170,7 +251,7 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof Key) {
-                var other = (Key) obj;
+                final var other = (Key) obj;
                 return x == other.x && y == other.y;
             } else {
                 return false;
