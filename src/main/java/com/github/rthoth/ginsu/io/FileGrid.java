@@ -13,7 +13,10 @@ import org.pcollections.PMap;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
@@ -33,20 +36,8 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
         this.wkbReader = wkbReader;
     }
 
-    private static String cellName(int x, int y, String extension) {
-        return x + "-" + y + "." + extension;
-    }
-
     private static String cellName(int x, int y) {
         return x + "-" + y;
-    }
-
-    private static FileInputStream openToRead(File directory, int x, int y, String extension) {
-        try {
-            return new FileInputStream(new File(directory, cellName(x, y, extension)));
-        } catch (Exception e) {
-            throw new GinsuException.IllegalState("It's impossible to open [" + x + "," + y + "]!", e);
-        }
     }
 
     private static FileInputStream openToRead(File directory, int x, int y) {
@@ -54,14 +45,6 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
             return new FileInputStream(new File(directory, cellName(x, y)));
         } catch (Exception e) {
             throw new GinsuException.IllegalState("It's impossible to open [" + x + "," + y + "]!", e);
-        }
-    }
-
-    private static FileOutputStream openToWrite(File directory, int x, int y, String extension, boolean append) {
-        try {
-            return new FileOutputStream(new File(directory, cellName(x, y, extension)), append);
-        } catch (FileNotFoundException e) {
-            throw new GinsuException.IllegalState("It's impossible to open [" + x + ", " + y + "]!", e);
         }
     }
 
@@ -104,7 +87,6 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
 
     public static class Builder<I extends Geometry> {
 
-        public static final String INPUT_EXTENSION = "input";
         private final int width;
         private final int height;
         private final File directory;
@@ -163,7 +145,7 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
         private void add(int x, int y, I value) {
             lock(x, y);
             try {
-                try (var output = openToWrite(directory, x, y, INPUT_EXTENSION, true)) {
+                try (var output = openToWrite(directory, x, y, true)) {
                     wkbWriter.get().write(value, new OutputStreamOutStream(output));
                     output.flush();
                 } catch (IOException e) {
@@ -213,7 +195,7 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
             return () -> {
                 PVector<I> values = TreePVector.empty();
 
-                try (var input = openToRead(directory, x, y, INPUT_EXTENSION)) {
+                try (var input = openToRead(directory, x, y)) {
                     final var wkbReader = this.wkbReader.get();
 
                     while (input.available() > 0) {

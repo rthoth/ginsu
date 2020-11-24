@@ -5,6 +5,8 @@ import org.junit.Test;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.operation.union.CascadedPolygonUnion;
 
+import java.util.concurrent.ForkJoinPool;
+
 import static com.google.common.truth.Truth.assertThat;
 
 public class FileGridTest extends AbstractTest implements Util {
@@ -35,7 +37,7 @@ public class FileGridTest extends AbstractTest implements Util {
                 .add(grid1)
                 .add(grid2);
 
-        var union = unionBuilder.build("result", (x, y, values) -> (Polygon) CascadedPolygonUnion.union(values));
+        var union = unionBuilder.build("result", (x, y, values) -> (Polygon) CascadedPolygonUnion.union(values), ForkJoinPool.commonPool());
         assertThat(union.toWKT()).isEqualTo("GEOMETRYCOLLECTION (POLYGON ((1 1, 1 0, 0 0, 0 1, 1 1)), POLYGON ((2 1, 2 0, 1 0, 1 1, 2 1)), POLYGON ((3 1, 3 0, 2 0, 2 1, 3 1)), POLYGON ((1 2, 1 1, 0 1, 0 2, 1 2)), POLYGON ((2 2, 2 1, 1 1, 1 2, 2 2)), POLYGON ((3 2, 3 1, 2 1, 2 2, 3 2)), POLYGON ((1 3, 1 2, 0 2, 0 3, 1 3)), POLYGON ((2 3, 2 2, 1 2, 1 3, 2 3)), POLYGON ((3 3, 3 2, 2 2, 2 3, 3 3)))");
     }
 }
