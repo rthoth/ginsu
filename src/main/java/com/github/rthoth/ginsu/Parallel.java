@@ -36,7 +36,7 @@ public class Parallel {
                                 .copy();
                         return CompletableFuture
                                 .allOf(Ginsu.map(grid.iterable(), entry -> entry.value).toArray(CompletableFuture[]::new))
-                                .thenComposeAsync(v -> CompletableFuture.supplyAsync(() -> ctx.slicer.merger().polygonal(grid.view(CompletableFuture::join), factory)));
+                                .thenComposeAsync(v -> CompletableFuture.supplyAsync(() -> ctx.slicer.merger().polygonal(grid.viewValue(CompletableFuture::join), factory)));
                     });
         }
     }

@@ -30,6 +30,6 @@ public class Merger {
 
     @SuppressWarnings("unused")
     public <T extends Polygonal> MultiPolygon polygonal(Grid<T> grid, GeometryFactory factory) {
-        return new MergeGrid<>(x, y, new PolygonMerger(factory, offset)).apply(grid.view(MultiShape::of));
+        return new MergeGrid<>(x, y, new PolygonMerger(factory, offset)).apply(grid.viewValue(MultiShape::of));
     }
 }

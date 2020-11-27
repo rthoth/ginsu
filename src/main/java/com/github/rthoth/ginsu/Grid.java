@@ -114,11 +114,16 @@ public abstract class Grid<T> {
         return wkt.append(")").toString();
     }
 
-    public <M> Grid<M> view(Function<T, M> mapper) {
+    @SuppressWarnings("unused")
+    public <M> Grid<M> view(ViewMapper<T, M> mapper) {
+        return new View<>(this, mapper);
+    }
+
+    public <M> Grid<M> viewValue(Function<T, M> mapper) {
         return new View<>(this, (x, y, value) -> mapper.apply(value));
     }
 
-    private interface ViewMapper<T, M> {
+    public interface ViewMapper<T, M> {
 
         M apply(int x, int y, T value);
     }

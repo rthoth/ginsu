@@ -1,6 +1,7 @@
 package com.github.rthoth.ginsu;
 
 import com.google.common.truth.Correspondence;
+import org.apache.commons.io.FileUtils;
 import org.locationtech.jts.geom.*;
 import org.pcollections.TreePVector;
 
@@ -57,7 +58,14 @@ public interface Util {
     }
 
     default File file(String filename) {
-        return new File(filename.replace('/', File.separatorChar));
+        return file(filename, false);
+    }
+
+    default File file(String filename, boolean remove) {
+        final var file = new File(filename.replace('/', File.separatorChar));
+        if (remove)
+            FileUtils.deleteQuietly(file);
+        return file;
     }
 
     default <T> Grid<T> gridXY(int w, int h, List<T> list) {
