@@ -13,10 +13,7 @@ import org.pcollections.PMap;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
@@ -42,13 +39,17 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
         this.wkbReader = wkbReader;
     }
 
+    private static File cellFile(File directory, int x, int y) {
+        return new File(directory, cellName(x, y));
+    }
+
     private static String cellName(int x, int y) {
         return x + "-" + y;
     }
 
     private static FileInputStream openToRead(File directory, int x, int y) {
         try {
-            return new FileInputStream(new File(directory, cellName(x, y)));
+            return new FileInputStream(cellFile(directory, x, y));
         } catch (Exception e) {
             throw new GinsuException.IllegalState("It's impossible to open [" + x + "," + y + "]!", e);
         }
@@ -56,7 +57,7 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
 
     private static FileOutputStream openToWrite(File directory, int x, int y, boolean append) {
         try {
-            return new FileOutputStream(new File(directory, cellName(x, y)), append);
+            return new FileOutputStream(cellFile(directory, x, y), append);
         } catch (Exception e) {
             throw new GinsuException.IllegalState("It's impossible to open [" + x + ", " + y + "]!", e);
         }
@@ -64,7 +65,7 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected G _get(int x, int y) {
+    protected G _get(final int x, final int y) {
         try (var input = openToRead(directory, x, y)) {
             return (G) wkbReader.get().read(new InputStreamInStream(input));
         } catch (Exception e) {
@@ -85,11 +86,47 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
 
     public interface Calculator<I, G> {
 
-        G calculate(int x, int y, Collection<I> values);
+        G calculate(int x, int y, Supplier<Collection<I>> values);
     }
 
     public interface Generator<G> {
         G generate(int x, int y);
+    }
+
+    private static class Buffer extends OutputStream {
+
+        private ByteArrayOutputStream buffer = new ByteArrayOutputStream(512);
+
+        public void reset(boolean keep) {
+            if (keep)
+                buffer.reset();
+            else
+                buffer = new ByteArrayOutputStream(512);
+
+        }
+
+        public int size() {
+            return buffer.size();
+        }
+
+        @Override
+        public void write(byte[] buff) throws IOException {
+            buffer.write(buff);
+        }
+
+        @Override
+        public void write(byte[] buff, int off, int len) {
+            buffer.write(buff, off, len);
+        }
+
+        @Override
+        public void write(int b) {
+            throw new UnsupportedOperationException();
+        }
+
+        public void writeTo(OutputStream outputStream) throws IOException {
+            buffer.writeTo(outputStream);
+        }
     }
 
     public static class Builder<I extends Geometry> {
@@ -100,11 +137,11 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
         private final Supplier<WKBReader> wkbReader;
         private final Supplier<WKBWriter> wkbWriter;
         private final PMap<Key, ReentrantLock> locks;
-        private final PMap<Key, ByteArrayOutputStream> buffers;
+        private final PMap<Key, Buffer> buffers;
         private final int maxBuffer;
         private final Semaphore semaphore;
-        private final AtomicLong bufferSize;
-
+        private final AtomicLong bufferSize = new AtomicLong();
+        private final int maxCellBuffer;
 
         public Builder(int width, int height, File directory, GeometryFactory factory) {
             this(width, height, DEFAULT_MAX_BUFFER, directory, factory);
@@ -124,15 +161,16 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
             this.height = height;
             this.directory = directory;
             this.maxBuffer = maxBuffer;
+            this.maxCellBuffer = maxBuffer / 3;
             this.semaphore = new Semaphore(width * height);
 
             var locks = HashTreePMap.<Key, ReentrantLock>empty();
-            var buffers = HashTreePMap.<Key, ByteArrayOutputStream>empty();
+            var buffers = HashTreePMap.<Key, Buffer>empty();
 
             for (var x = 0; x < width; x++) {
                 for (var y = 0; y < height; y++) {
                     final var key = new Key(x, y);
-                    buffers = buffers.plus(key, new ByteArrayOutputStream());
+                    buffers = buffers.plus(key, new Buffer());
                     locks = locks.plus(key, new ReentrantLock());
                 }
             }
@@ -142,7 +180,6 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
 
             this.locks = locks;
             this.buffers = buffers;
-            bufferSize = new AtomicLong();
         }
 
         private <G extends Geometry> CompletableFuture<FileGrid<G>> _build(String id, Calculator<I, CompletionStage<G>> calculator, Executor executor) {
@@ -154,7 +191,7 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
 
             try {
                 if (bufferSize.get() > 0) {
-                    doDump();
+                    doDump(false);
                 }
 
                 final var outputDirectory = new File(directory, id);
@@ -202,18 +239,18 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
 
         private void addBuffer(int x, int y, I value) {
             final var buffer = getBufferAndLock(x, y);
-            var added = 0;
+            var written = 0;
             try {
                 final var zero = buffer.size();
                 wkbWriter.get().write(value, new OutputStreamOutStream(buffer));
-                added = buffer.size() - zero;
+                written = buffer.size() - zero;
             } catch (Exception e) {
                 throw new GinsuException.IllegalState("It's impossible to add value buffer to [" + x + ", " + y + "]!", e);
             } finally {
                 unlock(x, y);
             }
 
-            if (bufferSize.addAndGet(added) > maxBuffer) {
+            if (bufferSize.addAndGet(written) > maxBuffer) {
                 tryDump();
             }
         }
@@ -241,24 +278,25 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
         }
 
         private <G extends Geometry> CompletableFuture<Void> calculate(File outputDirectory, int x, int y, Calculator<I, CompletionStage<G>> calculator, Executor executor) {
+
             return CompletableFuture
-                    .completedFuture(null)
-                    .thenComposeAsync(any -> {
+                    .<Supplier<Collection<I>>>completedFuture(() -> {
                         PVector<I> values = TreePVector.empty();
 
                         try (var input = openToRead(directory, x, y)) {
-                            final var wkbReader = this.wkbReader.get();
+                            final var reader = wkbReader.get();
 
                             while (input.available() > 0) {
                                 //noinspection unchecked
-                                values = values.plus((I) wkbReader.read(new InputStreamInStream(input)));
+                                values = values.plus((I) reader.read(new InputStreamInStream(input)));
                             }
                         } catch (Exception e) {
                             throw new GinsuException.IllegalState("It's impossible to read grid-cell input [" + x + ", " + y + "]!", e);
                         }
 
-                        return calculator.calculate(x, y, values);
-                    }, executor)
+                        return values;
+                    })
+                    .thenComposeAsync(supplier -> calculator.calculate(x, y, supplier), executor)
                     .thenApplyAsync(newValues -> {
                         try (var output = openToWrite(outputDirectory, x, y, false)) {
                             wkbWriter.get().write(newValues, new OutputStreamOutStream(output));
@@ -269,15 +307,15 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
                     }, executor);
         }
 
-        private void doDump() {
+        private void doDump(boolean keep) {
             for (var entry : buffers.entrySet()) {
                 final var buffer = entry.getValue();
-                if (buffer.size() > 0) {
+                if ((!keep && buffer.size() > 0) || buffer.size() > maxCellBuffer) {
 
                     final var key = entry.getKey();
                     try (var output = openToWrite(directory, key.x, key.y, true)) {
                         buffer.writeTo(output);
-                        buffer.reset();
+                        buffer.reset(keep);
                         output.flush();
                     } catch (Exception e) {
                         throw new GinsuException.IllegalState("Impossible to dump buffer of [" + key.x + ", " + key.y + "]!", e);
@@ -288,7 +326,7 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
             bufferSize.set(0L);
         }
 
-        private ByteArrayOutputStream getBufferAndLock(int x, int y) {
+        private Buffer getBufferAndLock(int x, int y) {
             try {
                 semaphore.acquire();
             } catch (InterruptedException e) {
@@ -309,7 +347,7 @@ public class FileGrid<G extends Geometry> extends Grid<G> {
 
             try {
                 if (bufferSize.get() > maxBuffer) {
-                    doDump();
+                    doDump(true);
                 }
             } finally {
                 semaphore.release(width * height);

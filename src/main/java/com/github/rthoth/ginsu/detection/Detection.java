@@ -29,7 +29,11 @@ public final class Detection {
 
     public Coordinate getNextInsideCoordinate(Event event) {
         if (event.coordinate != null) {
-            return sequence.getCoordinate(event.index);
+            if (Event.isIn(event)) {
+                return event.sequence.getCoordinate(event.index);
+            } else {
+                return Ginsu.previous(event.index, sequence, isRing);
+            }
         } else {
             return Event.isIn(event) ? Ginsu.next(event.index, sequence, isRing) : Ginsu.previous(event.index, sequence, isRing);
         }

@@ -123,14 +123,16 @@ public abstract class AbstractMaze<I> {
             var dimension = other.complement();
             var orientation = Orientation.index(p1, p2, q) * dimension.value;
 
-            if (orientation == Orientation.COLLINEAR)
-                throw new GinsuException.TopologyException("It is impossible merge events close to: " + p1);
+            if (orientation != Orientation.COLLINEAR) {
 
-            _1s = _1.event.getSide(dimension);
-            if (_1s == Side.LESS) {
-                return orientation == Orientation.CLOCKWISE ? new DoubleE<>(_1, _2) : new DoubleE<>(_2, _1);
+                _1s = _1.event.getSide(dimension);
+                if (_1s == Side.LESS) {
+                    return orientation == Orientation.CLOCKWISE ? new DoubleE<>(_1, _2) : new DoubleE<>(_2, _1);
+                } else {
+                    return orientation == Orientation.COUNTERCLOCKWISE ? new DoubleE<>(_1, _2) : new DoubleE<>(_2, _1);
+                }
             } else {
-                return orientation == Orientation.COUNTERCLOCKWISE ? new DoubleE<>(_1, _2) : new DoubleE<>(_2, _1);
+                return null;
             }
         }
     }

@@ -42,4 +42,22 @@ public class PolygonMergeTest extends AbstractTest implements Util {
 //        println(restored.toText());
         compareTopology().compare(restored, polygon);
     }
+
+    @Test
+    public void t02() {
+        final var multiPolygon = parseMultiPolygon("MULTIPOLYGON (((0 0, -100 0, -100 100, 0 100, 0 0)), ((0 100, 100 100, 100 0, 0 0, 0 100)), ((-100 0, 0 0, 0 -100, -100 -100, -100 0)), ((0 0, 100 0, 100 -100, 0 -100, 0 0)))");
+        final var slicer = new Slicer(new double[]{-50, 50}, new double[]{-50, 50});
+        final var grid = slicer.polygonal(multiPolygon);
+        println(grid.toWKT());
+        final var restored = slicer.merger().polygonal(grid, GEOMETRY_FACTORY);
+    }
+
+    @Test
+    public void t03() {
+        final var multiPolygon = parseMultiPolygon("MULTIPOLYGON (((0 0, -100 0, -100 100, 0 100, 0 0)), ((0 100, 100 100, 100 0, 0 0, 0 100)), ((-100 0, 0 0, 0 -100, -100 -100, -100 0)), ((0 0, 100 0, 100 -100, 0 -100, 0 0)))");
+        final var slicer = new Slicer(new double[]{0}, new double[]{-200, 200});
+        final var grid = slicer.polygonal(multiPolygon);
+        println(grid.toWKT());
+        final var restored = slicer.merger().polygonal(grid, GEOMETRY_FACTORY);
+    }
 }
