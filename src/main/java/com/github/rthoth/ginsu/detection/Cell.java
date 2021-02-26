@@ -10,8 +10,10 @@ import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 public class Cell {
 
@@ -31,8 +33,8 @@ public class Cell {
         return new Cell(shape, hasCorner, TreePVector.empty());
     }
 
-    public static Detection detect(Detector<X> x, Detector<Y> y, boolean hasCorner) {
-        var context = new Context();
+    public static Detection detect(Event.Factory factory, Detector<X> x, Detector<Y> y, boolean hasCorner) {
+        var context = new Context(factory);
         context.select(x, y);
         context.select(y, x);
         context.mergeCorners();
@@ -40,11 +42,7 @@ public class Cell {
         if (hasCorner)
             context.detectCorners(x, y);
 
-        if (!context.events.isEmpty())
-            return new Detection(context);
-        else {
-            
-        }
+        return new Detection(context);
     }
 
     public static Cell empty() {
@@ -59,7 +57,7 @@ public class Cell {
     }
 
     public boolean nonEmpty() {
-        return false;
+        return !detections.isEmpty();
     }
 
     public Cell plus(Detection detection) {
@@ -68,10 +66,36 @@ public class Cell {
 
     private static class Context {
 
+        Event.Factory factory;
         TreeSet<Event> events = new TreeSet<>(Event.PREVIOUS_COMPARATOR);
 
         Event xL, yL, xU, yU, ll, lu, uu, ul;
         Coordinate cll, clu, cuu, cul;
+
+        public Context(Event.Factory factory) {
+            this.factory = factory;
+        }
+
+        public void detectCorners(Detector<X> x, Detector<Y> y) {
+            cll = createCorner(ll, x.getLowerKnife(), y.getLowerKnife(), y.getLowerEvents());
+            clu = createCorner(lu, x.getLowerKnife(), y.getUpperKnife(), y.getUpperEvents());
+            cul = createCorner(ul, x.getUpperKnife(), y.getLowerKnife(), y.getLowerEvents());
+            cuu = createCorner(uu, x.getUpperKnife(), y.getUpperKnife(), y.getUpperEvents());
+        }
+
+        public boolean nonEmpty() {
+            return !events.isEmpty() || Stream.of(cll, clu, cul, cuu).allMatch(Objects::nonNull);
+        }
+
+        public void select(Detector<?> detector, Detector<?> filter) {
+            for (var event : detector.getEvents()) {
+                var position = filter.position(event.getCoordinate());
+                if (position == 1)
+                    events.add(event);
+                else if (Math.abs(position) == 2)
+                    addCorner(event, filter.getDimension(), position);
+            }
+        }
 
         void addCorner(Event event, Dimension dimension, int border) {
             if (dimension == Dimension.X) {
@@ -95,13 +119,6 @@ public class Cell {
             return null;
         }
 
-        public void detectCorners(Detector<X> x, Detector<Y> y) {
-            cll = createCorner(ll, x.getLowerKnife(), y.getLowerKnife(), y.getLowerEvents());
-            clu = createCorner(lu, x.getLowerKnife(), y.getUpperKnife(), y.getUpperEvents());
-            cul = createCorner(ul, x.getUpperKnife(), y.getLowerKnife(), y.getLowerEvents());
-            cuu = createCorner(uu, x.getUpperKnife(), y.getUpperKnife(), y.getUpperEvents());
-        }
-
         Event mergeCorner(Event e1, Event e2) {
             if (e1 != null && e2 != null) {
                 var newEvent = e1.merge(e2);
@@ -118,16 +135,6 @@ public class Cell {
             uu = mergeCorner(xU, yU);
             ul = mergeCorner(xU, yL);
         }
-
-        public void select(Detector<?> detector, Detector<?> filter) {
-            for (var event : detector.getEvents()) {
-                var position = filter.position(event.getCoordinate());
-                if (position == 1)
-                    events.add(event);
-                else if (Math.abs(position) == 2)
-                    addCorner(event, filter.getDimension(), position);
-            }
-        }
     }
 
     public static class Detection {
@@ -139,7 +146,7 @@ public class Cell {
         }
 
         public boolean nonEmpty() {
-            return false;
+            return context.nonEmpty();
         }
     }
 }

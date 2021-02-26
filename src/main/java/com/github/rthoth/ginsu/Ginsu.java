@@ -119,6 +119,11 @@ public abstract class Ginsu {
             throw new NoSuchElementException();
     }
 
+    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+    public static <T> PVector<T> plus(PVector<T> vector, Optional<T> optional) {
+        return optional.isPresent() ? vector.plus(optional.get()) : vector;
+    }
+
     public static <T> PVector<T> toVector(double[] values, DoubleFunction<T> function) {
         var vector = TreePVector.<T>empty();
         for (var value : values)

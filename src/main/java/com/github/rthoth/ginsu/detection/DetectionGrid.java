@@ -67,6 +67,10 @@ public class DetectionGrid {
         }
     }
 
+    public int size() {
+        return width * height;
+    }
+
     private PVector<Cell.Detection> detect(Shape shape, CoordinateSequence sequence, boolean hasCorner, boolean detectTouch) {
         var factory = Event.factory(shape, sequence);
         final var coordinate = new Coordinate[]{sequence.getCoordinate(0)};
@@ -92,13 +96,10 @@ public class DetectionGrid {
 
         var detections = TreePVector.<Cell.Detection>empty();
         for (var x : xDetectors)
-            for (var y : yDetectors)
-                detections = detections.plus(Cell.detect(x, y, hasCorner));
+            for (var y : yDetectors) {
+                detections = detections.plus(Cell.detect(factory, x, y, hasCorner));
+            }
 
         return detections;
-    }
-
-    public int size() {
-        return width * height;
     }
 }
